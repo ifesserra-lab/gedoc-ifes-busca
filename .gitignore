@@ -5,6 +5,11 @@ documentos/
 # resultados / dumps (contem SIAPE e nomes de terceiros)
 resultado_*.json
 *.json
+*.zip
+
+# paginas geradas por execucao (titulos com nomes de terceiros);
+# mantem apenas index.html como exemplo
+index_*.html
 
 # artefatos
 __pycache__/
