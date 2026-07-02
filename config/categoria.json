@@ -1,0 +1,20 @@
+{
+  "categorias": [
+    {
+      "nome": "Progressão",
+      "descricao": "Progressão funcional por mérito ou por capacitação, aceleração da progressão, avanço de nível/classe na carreira do servidor."
+    },
+    {
+      "nome": "Comissão",
+      "descricao": "Designação, atualização ou alteração de comissões, comitês, grupos de trabalho (GT), bancas, equipes ou colegiados."
+    },
+    {
+      "nome": "Férias",
+      "descricao": "Férias, interrupção de férias, ou designação de servidor para substituir o titular durante férias ou afastamento."
+    },
+    {
+      "nome": "Outros",
+      "descricao": "Qualquer documento que não se encaixe nas categorias acima (ex.: designação/dispensa de função gratificada, mobilidade, licença, moção, delegação de competência)."
+    }
+  ]
+}
