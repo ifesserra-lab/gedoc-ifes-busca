@@ -1,0 +1,20 @@
+# PDFs baixados (regeneraveis via script; contem dados de terceiros)
+documentos/
+*.pdf
+
+# resultados / dumps (contem SIAPE e nomes de terceiros)
+resultado_*.json
+*.json
+
+# artefatos
+__pycache__/
+*.pyc
+cookies.txt
+page.html
+result*.xml
+
+# ambiente / editor
+.claude/
+.venv/
+venv/
+.DS_Store
