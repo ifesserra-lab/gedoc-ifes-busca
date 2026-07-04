@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protótipo — Cadastro de Categorias</title>
+<style>
+  :root{
+    --azul:#0b5cad; --azul2:#0a4f96; --verde:#1f7a3d; --vermelho:#c0392b;
+    --bg:#eef2f7; --card:#ffffff; --linha:#e2e8f0; --txt:#1a2330; --sub:#5a6474;
+    --chip:#eaf1fb; --sombra:0 1px 3px rgba(16,32,60,.08),0 6px 20px rgba(16,32,60,.06);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#0f141b;--card:#161d27;--linha:#26303d;--txt:#e7edf5;
+      --sub:#9aa7b8;--chip:#17263c;--sombra:0 1px 3px rgba(0,0,0,.4);}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:var(--bg);color:var(--txt);line-height:1.5}
+  header{background:linear-gradient(135deg,var(--azul),var(--azul2));color:#fff;
+    padding:20px 24px}
+  header h1{margin:0;font-size:18px;display:flex;align-items:center;gap:10px}
+  header .tag{font-size:11px;opacity:.85;font-weight:400}
+  .wrap{max-width:880px;margin:0 auto;padding:20px 16px 60px}
+  .card{background:var(--card);border:1px solid var(--linha);border-radius:14px;
+    padding:18px;box-shadow:var(--sombra);margin-bottom:18px}
+  h2{margin:0 0 4px;font-size:16px}
+  .sub{color:var(--sub);font-size:13px;margin-bottom:14px}
+
+  label{font-size:12px;color:var(--sub);text-transform:uppercase;letter-spacing:.04em;
+    display:block;margin-bottom:6px}
+  input,textarea{width:100%;font-size:15px;padding:10px 12px;border-radius:10px;
+    border:1px solid var(--linha);background:transparent;color:var(--txt);font-family:inherit}
+  input:focus,textarea:focus{outline:2px solid var(--azul);border-color:var(--azul)}
+  textarea{resize:vertical;min-height:64px}
+  .grid{display:grid;grid-template-columns:220px 1fr;gap:12px;align-items:start}
+  @media(max-width:600px){.grid{grid-template-columns:1fr}}
+  .btn{border:0;border-radius:10px;padding:11px 16px;font-size:14px;font-weight:600;
+    cursor:pointer;color:#fff;background:var(--azul)}
+  .btn:hover{background:var(--azul2)}
+  .btn.verde{background:var(--verde)}
+  .btn.ghost{background:transparent;color:var(--azul);border:1px solid var(--azul)}
+  .btn.mini{padding:6px 10px;font-size:12px}
+  .btn.del{background:transparent;color:var(--vermelho);border:1px solid var(--vermelho)}
+  .barra{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+
+  /* tabela de categorias */
+  .cat{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--linha);
+    align-items:flex-start}
+  .cat:last-child{border-bottom:0}
+  .cat .dados{flex:1;min-width:0}
+  .cat .nome{font-weight:700;font-size:15px}
+  .cat .desc{color:var(--sub);font-size:13px;margin-top:3px}
+  .cat .acoes{display:flex;gap:8px;flex-shrink:0}
+  .vazio{color:var(--sub);font-size:13px;padding:14px 0}
+
+  pre{background:var(--chip);color:var(--txt);border:1px solid var(--linha);
+    border-radius:10px;padding:14px;overflow:auto;font-size:12.5px;margin:0}
+  #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+    background:#111827;color:#fff;padding:12px 18px;border-radius:10px;font-size:14px;
+    box-shadow:var(--sombra);opacity:0;transition:.3s;pointer-events:none}
+  #toast.show{opacity:1}
+  .nota{font-size:11px;color:var(--sub);text-align:center;margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🏷️ GeDoc IFES <span class="tag">— cadastro de categorias (protótipo)</span></h1>
+</header>
+
+<div class="wrap">
+
+  <!-- FORM -->
+  <div class="card">
+    <h2 id="form-titulo">Nova categoria</h2>
+    <div class="sub">Nome + descrição. A descrição é o que a IA usa para classificar
+      os documentos.</div>
+    <div class="grid">
+      <div>
+        <label for="nome">Nome</label>
+        <input id="nome" placeholder="ex.: Progressão">
+      </div>
+      <div>
+        <label for="desc">Descrição (critério de classificação)</label>
+        <textarea id="desc" placeholder="ex.: Progressão funcional por mérito ou capacitação, avanço na carreira do servidor."></textarea>
+      </div>
+    </div>
+    <div class="barra">
+      <button class="btn verde" onclick="salvar()">💾 Salvar categoria</button>
+      <button class="btn ghost" onclick="limpar()">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- LISTA -->
+  <div class="card">
+    <h2>Categorias cadastradas (<span id="contador">0</span>)</h2>
+    <div class="sub">Estas categorias alimentam <code>config/categoria.json</code>.</div>
+    <div id="lista"></div>
+    <div class="barra">
+      <button class="btn" onclick="verJson()">🧩 Ver categoria.json</button>
+      <button class="btn ghost" onclick="restaurar()">↺ Restaurar padrão</button>
+    </div>
+  </div>
+
+  <!-- JSON -->
+  <div class="card" id="box-json" style="display:none">
+    <h2>categoria.json</h2>
+    <div class="sub">Copie para <code>config/categoria.json</code>.</div>
+    <pre id="json"></pre>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+  var PADRAO=[
+    {nome:"Progressão",descricao:"Progressão funcional por mérito ou por capacitação, aceleração da progressão, avanço de nível/classe na carreira do servidor."},
+    {nome:"Comissão",descricao:"Designação, atualização ou alteração de comissões, comitês, grupos de trabalho (GT), bancas, equipes ou colegiados."},
+    {nome:"Férias",descricao:"Férias, interrupção de férias, ou designação de servidor para substituir o titular durante férias ou afastamento."},
+    {nome:"Outros",descricao:"Qualquer documento que não se encaixe nas categorias acima."}
+  ];
+  var cats=JSON.parse(JSON.stringify(PADRAO));
+  var editando=-1;
+
+  function render(){
+    var l=document.getElementById('lista');
+    document.getElementById('contador').textContent=cats.length;
+    if(!cats.length){l.innerHTML='<div class="vazio">Nenhuma categoria. Cadastre acima.</div>';return;}
+    l.innerHTML=cats.map(function(c,i){
+      return '<div class="cat"><div class="dados">'+
+        '<div class="nome">'+esc(c.nome)+'</div>'+
+        '<div class="desc">'+esc(c.descricao)+'</div></div>'+
+        '<div class="acoes">'+
+        '<button class="btn ghost mini" onclick="editar('+i+')">Editar</button>'+
+        '<button class="btn del mini" onclick="remover('+i+')">Remover</button>'+
+        '</div></div>';
+    }).join('');
+  }
+  function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+  function salvar(){
+    var nome=document.getElementById('nome').value.trim();
+    var desc=document.getElementById('desc').value.trim();
+    if(!nome){toast('Informe o nome da categoria.');return;}
+    if(editando>=0){cats[editando]={nome:nome,descricao:desc};toast('Categoria atualizada.');}
+    else{cats.push({nome:nome,descricao:desc});toast('Categoria adicionada.');}
+    limpar();render();
+  }
+  function editar(i){
+    editando=i;
+    document.getElementById('nome').value=cats[i].nome;
+    document.getElementById('desc').value=cats[i].descricao;
+    document.getElementById('form-titulo').textContent='Editar categoria';
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  function remover(i){cats.splice(i,1);render();toast('Categoria removida.');}
+  function limpar(){
+    editando=-1;
+    document.getElementById('nome').value='';
+    document.getElementById('desc').value='';
+    document.getElementById('form-titulo').textContent='Nova categoria';
+  }
+  function restaurar(){cats=JSON.parse(JSON.stringify(PADRAO));limpar();render();toast('Padrão restaurado.');}
+  function verJson(){
+    document.getElementById('json').textContent=JSON.stringify({categorias:cats},null,2);
+    document.getElementById('box-json').style.display='block';
+    document.getElementById('box-json').scrollIntoView({behavior:'smooth'});
+  }
+
+  var t;
+  function toast(m){var el=document.getElementById('toast');el.textContent=m;
+    el.classList.add('show');clearTimeout(t);t=setTimeout(function(){el.classList.remove('show')},1800);}
+
+  render();
+</script>
+</body>
+</html>

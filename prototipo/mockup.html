@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protótipo — GeDoc IFES por SIAPE</title>
+<style>
+  :root{
+    --azul:#0b5cad; --azul2:#0a4f96; --verde:#1f7a3d; --bg:#eef2f7;
+    --card:#ffffff; --linha:#e2e8f0; --txt:#1a2330; --sub:#5a6474;
+    --chip:#eaf1fb; --sombra:0 1px 3px rgba(16,32,60,.08),0 6px 20px rgba(16,32,60,.06);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#0f141b;--card:#161d27;--linha:#26303d;--txt:#e7edf5;
+      --sub:#9aa7b8;--chip:#17263c;--sombra:0 1px 3px rgba(0,0,0,.4);}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:var(--bg);color:var(--txt);line-height:1.5}
+  header{background:linear-gradient(135deg,var(--azul),var(--azul2));color:#fff;
+    padding:20px 24px}
+  header h1{margin:0;font-size:18px;display:flex;align-items:center;gap:10px}
+  header .tag{font-size:11px;opacity:.85;font-weight:400}
+  .wrap{max-width:880px;margin:0 auto;padding:20px 16px 60px}
+
+  /* busca */
+  .busca{background:var(--card);border:1px solid var(--linha);border-radius:14px;
+    padding:18px;box-shadow:var(--sombra);margin-bottom:18px}
+  .busca label{font-size:12px;color:var(--sub);text-transform:uppercase;
+    letter-spacing:.04em}
+  .linha-busca{display:flex;gap:10px;margin-top:8px}
+  .linha-busca input{flex:1;font-size:16px;padding:12px 14px;border-radius:10px;
+    border:1px solid var(--linha);background:transparent;color:var(--txt)}
+  .linha-busca input:focus{outline:2px solid var(--azul);border-color:var(--azul)}
+  .btn{border:0;border-radius:10px;padding:12px 18px;font-size:14px;font-weight:600;
+    cursor:pointer;color:#fff;background:var(--azul)}
+  .btn:hover{background:var(--azul2)}
+  .btn.verde{background:var(--verde)}
+  .btn.ghost{background:transparent;color:var(--azul);border:1px solid var(--azul)}
+  .dica{font-size:12px;color:var(--sub);margin-top:8px}
+
+  /* estados */
+  .oculto{display:none}
+  .loading{display:flex;align-items:center;gap:12px;justify-content:center;
+    padding:40px;color:var(--sub)}
+  .spinner{width:22px;height:22px;border:3px solid var(--linha);
+    border-top-color:var(--azul);border-radius:50%;animation:girar .8s linear infinite}
+  @keyframes girar{to{transform:rotate(360deg)}}
+
+  /* resumo topo */
+  .resumo{background:var(--card);border:1px solid var(--linha);border-radius:14px;
+    padding:18px;box-shadow:var(--sombra);margin-bottom:16px}
+  .resumo .top{display:flex;justify-content:space-between;align-items:flex-start;
+    flex-wrap:wrap;gap:12px}
+  .resumo h2{margin:0;font-size:16px}
+  .resumo .pessoa{color:var(--sub);font-size:13px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .chip{background:var(--chip);color:var(--azul);border-radius:999px;
+    padding:6px 12px;font-size:13px;font-weight:600}
+  .chip b{font-weight:800}
+  .acoes{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+
+  /* lista */
+  .lista{background:var(--card);border:1px solid var(--linha);border-radius:14px;
+    box-shadow:var(--sombra);overflow:hidden}
+  .item{display:flex;gap:12px;padding:14px 16px;border-bottom:1px solid var(--linha);
+    align-items:flex-start}
+  .item:last-child{border-bottom:0}
+  .item .cat{flex:0 0 auto;font-size:11px;font-weight:700;padding:3px 9px;
+    border-radius:6px;margin-top:2px;white-space:nowrap}
+  .cat.Progressao{background:#e6f4ea;color:#1f7a3d}
+  .cat.Comissao{background:#eaf1fb;color:#0b5cad}
+  .cat.Outros{background:#f1f0ee;color:#6b5e4a}
+  @media (prefers-color-scheme:dark){
+    .cat.Progressao{background:#123020;color:#5fd08a}
+    .cat.Comissao{background:#122844;color:#7fb2f0}
+    .cat.Outros{background:#2a2620;color:#c9b79a}
+  }
+  .item .info{flex:1;min-width:0}
+  .item .titulo{font-weight:600;font-size:14px}
+  .item .meta{color:var(--sub);font-size:12px;margin-top:2px}
+  .item .resumo-doc{font-size:12.5px;color:var(--sub);margin-top:6px}
+  .item .pdf{flex:0 0 auto;color:var(--azul);font-size:12px;font-weight:700;
+    text-decoration:none;border:1px solid var(--azul);border-radius:8px;
+    padding:5px 10px;margin-top:2px}
+
+  /* toast */
+  #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+    background:#111827;color:#fff;padding:12px 18px;border-radius:10px;
+    font-size:14px;box-shadow:var(--sombra);opacity:0;transition:.3s;pointer-events:none}
+  #toast.show{opacity:1}
+  .nota{font-size:11px;color:var(--sub);text-align:center;margin-top:22px}
+</style>
+</head>
+<body>
+<header>
+  <h1>📄 GeDoc IFES <span class="tag">— consulta de documentos por SIAPE (protótipo)</span></h1>
+</header>
+
+<div class="wrap">
+
+  <!-- BUSCA -->
+  <div class="busca">
+    <label for="siape">Matrícula SIAPE do servidor</label>
+    <div class="linha-busca">
+      <input id="siape" inputmode="numeric" placeholder="ex.: 1998547" value="1998547">
+      <button class="btn" onclick="buscar()">🔍 Buscar</button>
+    </div>
+    <div class="dica">Busca no portal GeDoc, filtra documentos que contêm o SIAPE,
+      resume e permite gerar PDF / baixar os arquivos.</div>
+  </div>
+
+  <!-- LOADING -->
+  <div id="loading" class="loading oculto">
+    <div class="spinner"></div>
+    <div>Buscando documentos e gerando resumos…</div>
+  </div>
+
+  <!-- RESULTADOS -->
+  <div id="resultado" class="oculto">
+    <div class="resumo">
+      <div class="top">
+        <div>
+          <h2>28 documentos encontrados</h2>
+          <div class="pessoa">SIAPE 1998547 · PAULO SÉRGIO DOS SANTOS JÚNIOR</div>
+        </div>
+      </div>
+      <div class="chips">
+        <span class="chip">Total <b>28</b></span>
+        <span class="chip">Progressão <b>3</b></span>
+        <span class="chip">Comissão <b>20</b></span>
+        <span class="chip">Outros <b>5</b></span>
+      </div>
+      <div class="acoes">
+        <button class="btn verde" onclick="toast('Gerando PDF do resumo…')">🧾 Gerar PDF do resumo</button>
+        <button class="btn ghost" onclick="toast('Baixando 28 PDFs (zip)…')">⬇️ Baixar todos os arquivos</button>
+      </div>
+    </div>
+
+    <div class="lista">
+      <div class="item">
+        <span class="cat Progressao">Progressão</span>
+        <div class="info">
+          <div class="titulo">PORTARIA Nº 344/2018 — Autoriza afastamento para capacitação</div>
+          <div class="meta">14/08/2018 · SIAPE 1998547</div>
+          <div class="resumo-doc">Autoriza afastamento de 2 anos para Doutorado em Ciência
+            da Computação na UFES, a partir de 13.08.2018.</div>
+        </div>
+        <a class="pdf" href="#" onclick="toast('Abrindo PDF…');return false">PDF</a>
+      </div>
+
+      <div class="item">
+        <span class="cat Comissao">Comissão</span>
+        <div class="info">
+          <div class="titulo">PORTARIA Nº 311/2024 — Comissão do Processo Seletivo PPComp 2025</div>
+          <div class="meta">04/12/2024 · SIAPE 1998547</div>
+          <div class="resumo-doc">Designa comissão responsável pelo processo seletivo de
+            alunos do Mestrado Profissional em Computação Aplicada.</div>
+        </div>
+        <a class="pdf" href="#" onclick="toast('Abrindo PDF…');return false">PDF</a>
+      </div>
+
+      <div class="item">
+        <span class="cat Progressao">Progressão</span>
+        <div class="info">
+          <div class="titulo">PORTARIA Nº 120/2020 — Progressão funcional</div>
+          <div class="meta">05/06/2020 · SIAPE 1998547</div>
+          <div class="resumo-doc">Concede progressão funcional por mérito ao servidor.</div>
+        </div>
+        <a class="pdf" href="#" onclick="toast('Abrindo PDF…');return false">PDF</a>
+      </div>
+
+      <div class="item">
+        <span class="cat Outros">Outros</span>
+        <div class="info">
+          <div class="titulo">Despacho nº 9/2016 — Afastamento do País</div>
+          <div class="meta">15/03/2016 · SIAPE 1998547</div>
+          <div class="resumo-doc">Autoriza afastamento do país para participação em evento
+            acadêmico.</div>
+        </div>
+        <a class="pdf" href="#" onclick="toast('Abrindo PDF…');return false">PDF</a>
+      </div>
+
+      <div class="item">
+        <span class="cat Comissao">Comissão</span>
+        <div class="info">
+          <div class="titulo">PORTARIA Nº 253/2025 — Organização do SBSI 2026</div>
+          <div class="meta">04/07/2025 · SIAPE 1998547</div>
+          <div class="resumo-doc">Designa comissão de organização do Simpósio Brasileiro
+            de Sistemas de Informação 2026.</div>
+        </div>
+        <a class="pdf" href="#" onclick="toast('Abrindo PDF…');return false">PDF</a>
+      </div>
+    </div>
+
+    <div class="nota">Protótipo visual — dados de exemplo. Ações não executam de verdade.</div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+  function buscar(){
+    var r=document.getElementById('resultado');
+    var l=document.getElementById('loading');
+    r.classList.add('oculto');
+    l.classList.remove('oculto');
+    setTimeout(function(){
+      l.classList.add('oculto');
+      r.classList.remove('oculto');
+    },1200);
+  }
+  var t;
+  function toast(msg){
+    var el=document.getElementById('toast');
+    el.textContent=msg; el.classList.add('show');
+    clearTimeout(t); t=setTimeout(function(){el.classList.remove('show')},1800);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GeDoc IFES — Sistema</title>
+<style>
+  :root{
+    --azul:#0b5cad; --azul2:#0a4f96; --verde:#1f7a3d;
+    --bg:#eef2f7; --card:#ffffff; --linha:#e2e8f0; --txt:#1a2330; --sub:#5a6474;
+    --chip:#eaf1fb; --sombra:0 1px 3px rgba(16,32,60,.08),0 8px 24px rgba(16,32,60,.07);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#0f141b;--card:#161d27;--linha:#26303d;--txt:#e7edf5;
+      --sub:#9aa7b8;--chip:#17263c;--sombra:0 1px 3px rgba(0,0,0,.5);}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:var(--bg);color:var(--txt);line-height:1.5}
+  header{background:linear-gradient(135deg,var(--azul),var(--azul2));color:#fff;
+    padding:18px 24px;display:flex;align-items:center;gap:14px}
+  header h1{margin:0;font-size:18px;display:flex;align-items:center;gap:10px}
+  header .tag{font-size:11px;opacity:.85;font-weight:400}
+  header nav{margin-left:auto;display:flex;gap:8px}
+  header nav a{color:#fff;text-decoration:none;font-size:13px;font-weight:600;
+    border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:6px 12px}
+  header nav a:hover{background:rgba(255,255,255,.15)}
+  .wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+
+  .busca{background:var(--card);border:1px solid var(--linha);border-radius:14px;
+    padding:18px;box-shadow:var(--sombra);margin-bottom:18px}
+  .busca label{font-size:12px;color:var(--sub);text-transform:uppercase;letter-spacing:.04em}
+  .linha{display:flex;gap:10px;margin-top:8px}
+  .linha input{flex:1;font-size:16px;padding:12px 14px;border-radius:10px;
+    border:1px solid var(--linha);background:transparent;color:var(--txt)}
+  .linha input:focus{outline:2px solid var(--azul);border-color:var(--azul)}
+  .btn{border:0;border-radius:10px;padding:12px 18px;font-size:14px;font-weight:600;
+    cursor:pointer;color:#fff;background:var(--azul)}
+  .btn:hover{background:var(--azul2)}
+  .btn.verde{background:var(--verde)}
+  .btn.ghost{background:transparent;color:var(--azul);border:1px solid var(--azul)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .dica{font-size:12px;color:var(--sub);margin-top:8px}
+
+  .oculto{display:none}
+  .loading{display:flex;align-items:center;gap:12px;justify-content:center;padding:40px;color:var(--sub)}
+  .spinner{width:22px;height:22px;border:3px solid var(--linha);border-top-color:var(--azul);
+    border-radius:50%;animation:girar .8s linear infinite}
+  @keyframes girar{to{transform:rotate(360deg)}}
+  .erro{background:#fdecea;color:#7f1d1d;border:1px solid #f5c6c2;border-radius:10px;
+    padding:12px 14px;font-size:14px}
+  @media(prefers-color-scheme:dark){.erro{background:#3a1414;color:#f7b8b2;border-color:#5c1e1e}}
+
+  .resumo{background:var(--card);border:1px solid var(--linha);border-radius:14px;
+    padding:18px;box-shadow:var(--sombra);margin-bottom:16px}
+  .resumo h2{margin:0;font-size:16px}
+  .resumo .pessoa{color:var(--sub);font-size:13px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .chip{background:var(--chip);color:var(--azul);border-radius:999px;padding:6px 12px;
+    font-size:13px;font-weight:600}
+  .chip b{font-weight:800}
+  .acoes{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+
+  .grupo{margin-bottom:16px}
+  .grupo h3{margin:0 0 8px;font-size:14px;color:var(--sub);text-transform:uppercase;
+    letter-spacing:.03em}
+  .lista{background:var(--card);border:1px solid var(--linha);border-radius:14px;
+    box-shadow:var(--sombra);overflow:hidden}
+  .item{display:flex;gap:12px;padding:14px 16px;border-bottom:1px solid var(--linha);align-items:flex-start}
+  .item:last-child{border-bottom:0}
+  .item .info{flex:1;min-width:0}
+  .item .titulo{font-weight:600;font-size:14px}
+  .item .meta{color:var(--sub);font-size:12px;margin-top:2px}
+  .item .rz{font-size:12.5px;color:var(--sub);margin-top:6px}
+  .item .pdf{flex:0 0 auto;color:var(--azul);font-size:12px;font-weight:700;text-decoration:none;
+    border:1px solid var(--azul);border-radius:8px;padding:5px 10px;margin-top:2px}
+
+  #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#111827;
+    color:#fff;padding:12px 18px;border-radius:10px;font-size:14px;box-shadow:var(--sombra);
+    opacity:0;transition:.3s;pointer-events:none}
+  #toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>📄 GeDoc IFES <span class="tag">— sistema de consulta por SIAPE</span></h1>
+  <nav><a href="/">Buscar</a><a href="/categorias">Categorias</a></nav>
+</header>
+
+<div class="wrap">
+  <div class="busca">
+    <label for="siape">Matrícula SIAPE</label>
+    <div class="linha">
+      <input id="siape" inputmode="numeric" placeholder="ex.: 1998547" value="1998547"
+             onkeydown="if(event.key==='Enter')buscar()">
+      <button class="btn" id="btn-buscar" onclick="buscar()">🔍 Buscar</button>
+    </div>
+    <div class="dica">Busca no GeDoc, filtra por SIAPE, classifica e resume com IA,
+      gera PDF e permite baixar os arquivos. (1ª busca de um SIAPE novo demora mais;
+      as já consultadas usam cache.)</div>
+  </div>
+
+  <div id="loading" class="loading oculto">
+    <div class="spinner"></div>
+    <div id="loading-txt">Buscando, classificando e resumindo…</div>
+  </div>
+
+  <div id="erro" class="erro oculto"></div>
+
+  <div id="resultado" class="oculto">
+    <div class="resumo">
+      <h2 id="r-total"></h2>
+      <div class="pessoa" id="r-pessoa"></div>
+      <div class="chips" id="r-chips"></div>
+      <div class="acoes">
+        <a class="btn verde" id="a-pdf" href="#" target="_blank">🧾 PDF do resumo</a>
+        <a class="btn ghost" id="a-zip" href="#">⬇️ Baixar todos (zip)</a>
+      </div>
+    </div>
+    <div id="grupos"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  var siapeAtual="";
+
+  function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function el(id){return document.getElementById(id);}
+
+  async function buscar(){
+    var siape=el('siape').value.trim();
+    if(!/^\d{5,8}$/.test(siape)){toast('SIAPE deve ter 5 a 8 dígitos.');return;}
+    el('resultado').classList.add('oculto');
+    el('erro').classList.add('oculto');
+    el('loading').classList.remove('oculto');
+    el('btn-buscar').disabled=true;
+    try{
+      var r=await fetch('/api/buscar',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({siape:siape})});
+      var d=await r.json();
+      if(!r.ok) throw new Error(d.erro||('HTTP '+r.status));
+      siapeAtual=d.termo;
+      render(d);
+    }catch(e){
+      el('erro').textContent='Erro: '+e.message;
+      el('erro').classList.remove('oculto');
+    }finally{
+      el('loading').classList.add('oculto');
+      el('btn-buscar').disabled=false;
+    }
+  }
+
+  function render(d){
+    var pessoa='';
+    // tenta extrair nome do primeiro titulo
+    var todos=d.categorias.flatMap(function(g){return g.itens;});
+    el('r-total').textContent=d.total+' documento(s) encontrados';
+    el('r-pessoa').textContent='SIAPE '+d.termo+(d.modo==='keyword'?' · (classificação keyword — sem chave IA)':'');
+    var chips='<span class="chip">Total <b>'+d.total+'</b></span>';
+    d.categorias.forEach(function(g){chips+='<span class="chip">'+esc(g.categoria)+' <b>'+g.qtd+'</b></span>';});
+    el('r-chips').innerHTML=chips;
+
+    el('a-pdf').style.display=d.tem_pdf?'inline-block':'none';
+    el('a-pdf').href='/api/pdf?siape='+encodeURIComponent(d.termo);
+    el('a-zip').href='/api/zip?siape='+encodeURIComponent(d.termo);
+
+    el('grupos').innerHTML=d.categorias.map(function(g){
+      var itens=g.itens.map(function(it){
+        var pdf=it.arquivo?('<a class="pdf" target="_blank" href="/api/doc?siape='+encodeURIComponent(d.termo)+
+          '&arquivo='+encodeURIComponent(it.arquivo)+'">PDF</a>'):'';
+        return '<div class="item"><div class="info">'+
+          '<div class="titulo">'+esc(it.titulo)+'</div>'+
+          '<div class="meta">'+esc(it.data||'')+' · SIAPE '+esc(d.termo)+'</div>'+
+          (it.resumo?('<div class="rz">'+esc(it.resumo)+'</div>'):'')+
+          '</div>'+pdf+'</div>';
+      }).join('');
+      return '<div class="grupo"><h3>'+esc(g.categoria)+' ('+g.qtd+')</h3>'+
+        '<div class="lista">'+itens+'</div></div>';
+    }).join('');
+
+    el('resultado').classList.remove('oculto');
+  }
+
+  var t;
+  function toast(m){var e=el('toast');e.textContent=m;e.classList.add('show');
+    clearTimeout(t);t=setTimeout(function(){e.classList.remove('show')},1900);}
+</script>
+</body>
+</html>
