@@ -1,20 +1,25 @@
 <!--
 Sync Impact Report
-- Version change: (template) → 1.0.0
-- Ratification: initial adoption (constitution criada a partir do codigo existente)
-- Principles defined:
-  I. Fidelidade a Fonte Oficial
-  II. Privacidade e LGPD (NON-NEGOTIABLE)
-  III. Reprodutibilidade e Cache
-  IV. Configuracao sobre Codigo
-  V. Separacao de Camadas e DRY
-- Added sections: Restricoes Tecnicas; Fluxo de Trabalho; Governance
+- Version change: 1.0.0 → 1.1.0  (MINOR: novos principios e secao de stack)
+- Ratification: 2026-07-03 (mantida) | Last Amended: 2026-07-04
+- Principles:
+  I. Fidelidade a Fonte Oficial       (mantido)
+  II. Privacidade e LGPD              (mantido, NON-NEGOTIABLE)
+  III. Reprodutibilidade e Cache      (mantido)
+  IV. Configuracao sobre Codigo       (mantido)
+  V. Separacao de Camadas e DRY       (mantido)
+  VI. Orientacao a Objetos            (novo)
+  VII. Test-Driven Development        (novo, NON-NEGOTIABLE)
+  VIII. Codigo Pequeno e Simples      (novo)
+  IX. Padroes de Projeto              (novo)
+  X. Issue-First no GitHub            (novo, NON-NEGOTIABLE)
+- Added sections: nenhuma nova (Restricoes Tecnicas e Fluxo de Trabalho atualizados)
 - Removed sections: none
 - Templates alignment:
-  ✅ .specify/templates/plan-template.md (Constitution Check generico — compativel)
+  ✅ .specify/templates/plan-template.md (Constitution Check — cobre TDD/OO/patterns)
   ✅ .specify/templates/spec-template.md (sem conflito)
-  ✅ .specify/templates/tasks-template.md (sem conflito)
-  ✅ README.md (principios refletem o documentado)
+  ✅ .specify/templates/tasks-template.md (tasks de teste primeiro; issue-first)
+  ⚠ README.md (atualizar stack alvo Tauri 2.0 + Vue quando a migracao iniciar)
 - Deferred TODOs: none
 -->
 
@@ -61,8 +66,7 @@ Comportamento de dominio MUST ser ajustavel por configuracao, sem editar codigo.
 - Categorias sao definidas em `config/categoria.json` (nome + descricao) e
   guiam a classificacao; alterar categorias NAO exige mudanca de codigo.
 - Credenciais e ambiente vem de `config/.env`.
-- Caminhos MUST ser resolvidos em relacao a raiz do projeto, permitindo execucao
-  a partir de qualquer diretorio.
+- Caminhos MUST ser resolvidos em relacao a raiz do projeto.
 
 Rationale: adaptar o sistema a novos usos deve ser barato e sem risco de
 regressao no codigo.
@@ -70,44 +74,98 @@ regressao no codigo.
 ### V. Separacao de Camadas e DRY
 A estrutura `src/ | config/ | data/` MUST ser respeitada.
 - Codigo em `src/`, configuracao em `config/`, saidas em `data/`.
-- Cada script tem responsabilidade unica (buscar, categorizar, resumir, pdf).
+- Cada modulo tem responsabilidade unica.
 - Integracoes compartilhadas (ex.: cliente Mistral) MUST residir em um unico
   modulo reutilizavel; logica duplicada deve ser extraida.
 
 Rationale: coesao e baixa duplicacao reduzem defeitos e facilitam manutencao.
 
+### VI. Orientacao a Objetos
+O dominio MUST ser modelado em objetos coesos, com responsabilidade unica.
+- As entidades da ontologia (`docs/ontology.yaml`) MUST corresponder a classes
+  com encapsulamento; estado interno nao e exposto diretamente.
+- Preferir composicao a heranca; dependencias explicitas (injecao) em vez de
+  globais/singletons ocultos.
+- Regras de dominio MUST viver nos objetos de dominio, nao espalhadas em
+  controllers/UI.
+
+Rationale: OO bem aplicado localiza a mudanca e torna o dominio testavel.
+
+### VII. Test-Driven Development (NON-NEGOTIABLE)
+Todo comportamento novo MUST nascer de um teste que falha primeiro.
+- Ciclo Red-Green-Refactor obrigatorio: teste falha → codigo minimo → refatora.
+- As regras de dominio (R1-R10 da ontologia) MUST ter testes automatizados.
+- Testes MUST rodar sem depender de rede (portal/LLM sao dublados/mocked).
+- Um bug corrigido MUST vir acompanhado de um teste que o reproduz.
+
+Rationale: TDD garante regressao controlada e projeto guiado por contrato.
+
+### VIII. Codigo Pequeno e Simples
+Manter unidades pequenas e legiveis.
+- Funcoes/metodos curtos e com um proposito; arquivos pequenos.
+- Aplicar YAGNI: nao implementar o que nao e exigido por uma US/regra.
+- Complexidade adicional MUST ser justificada; na duvida, simplifica.
+
+Rationale: codigo pequeno e mais facil de testar, revisar e evoluir.
+
+### IX. Padroes de Projeto
+Usar padroes de projeto para resolver problemas reais, sem over-engineering.
+- Aplicar padroes GoF/arquiteturais quando houver problema recorrente; nomear e
+  justificar o padrao escolhido.
+- Arquitetura de UI segue MVC: Model/Controller em Rust, View em Vue, estado em
+  Pinia (ver principio de stack).
+- Padrao NAO deve ser introduzido sem necessidade demonstrada.
+
+Rationale: padroes comunicam intencao e reduzem acoplamento quando bem usados.
+
+### X. Issue-First no GitHub (NON-NEGOTIABLE)
+Nenhuma execucao/implementacao comeca sem uma issue aberta.
+- Antes de codificar qualquer tarefa, MUST existir uma issue no GitHub
+  descrevendo objetivo, criterio de aceite e escopo.
+- Commits e PRs MUST referenciar a issue (ex.: `#123`).
+- Tasks derivadas do spec-kit MUST virar issues antes da implementacao
+  (`/speckit-taskstoissues` pode ser usado).
+
+Rationale: rastreabilidade, revisao e historico do "porque" de cada mudanca.
+
 ## Restricoes Tecnicas
 
-- Linguagem: Python 3.8+; dependencias minimas (`requests`, `markdown`).
-- Ferramentas externas: `pdftotext` (poppler) para texto; Chrome/Chromium para
-  PDF; API Mistral para classificacao/resumo.
-- Chamadas a servicos externos MUST tratar rate limit (HTTP 429) com throttle e
-  retry com backoff exponencial.
-- Type hints SHOULD ser usados em codigo novo; erros de negocio MUST usar
-  excecoes especificas e mensagens claras ao usuario (nao stack trace cru).
+Stack alvo do produto (aplicacao desktop):
+
+- **Desktop:** Tauri 2.0 (backend em Rust).
+- **Frontend:** Vue 3 (Composition API, `<script setup>`, TypeScript) + Pinia.
+- **Arquitetura:** MVC — Model/Controller em Rust (`src-tauri/`), View em Vue,
+  ViewModel/estado em Pinia; IPC tipado entre camadas.
+- **Testes:** unitarios + integracao; disciplina de TDD; especialista em teste,
+  Tauri e padroes de projeto conduz as decisoes.
+- **Seguranca:** menor privilegio nas `capabilities`/permissions do Tauri;
+  validar toda entrada de IPC.
+
+Implementacao atual (pipeline Python em `src/`: busca, categorizacao, resumo,
+web) e considerada legado a ser migrado para a stack alvo, preservando os
+principios de dominio (I-V). Chamadas externas MUST tratar rate limit (429) com
+throttle e retry com backoff.
 
 ## Fluxo de Trabalho
 
-Pipeline canonica, cada etapa consumindo a saida da anterior:
+1. **Abrir issue no GitHub** (obrigatorio, principio X) antes de qualquer tarefa.
+2. Especificar/planejar via spec-kit (`spec.md` → `plan.md` → `tasks.md`).
+3. **TDD:** escrever teste que falha → implementar minimo → refatorar.
+4. Commits/PRs referenciam a issue; PR so integra com testes verdes.
+5. Validar saidas de ponta a ponta antes de concluir.
 
-1. `buscar_gedoc.py` — busca + paginacao + filtro por SIAPE + download + HTML/JSON
-2. `categorizar.py` — classificacao (keyword ou LLM via `categoria.json`)
-3. `resumir_mistral.py` — resumo por documento, agrupado por categoria
-4. `md_para_pdf.py` — Markdown -> PDF
-
-- Saidas MUST ser validadas apos gerar (contagem, validade de PDF, zero falhas).
-- Mudanca em codigo com efeito observavel MUST ser exercida de ponta a ponta
-  antes de considerar concluida.
+Pipeline de dominio (etapas encadeadas, idempotentes via cache):
+`buscar → categorizar → resumir → pdf`.
 
 ## Governance
 
 Esta constituicao supersede outras praticas do projeto.
-- Emendas MUST ser documentadas neste arquivo com atualizacao de versao
-  (semver: MAJOR remocao/redefinicao incompativel; MINOR novo principio/secao;
-  PATCH ajustes de texto).
-- Todo commit/PR MUST verificar conformidade com os principios — em especial o
-  Principio II (nenhuma PII de terceiros versionada).
+- Emendas MUST ser documentadas aqui com atualizacao de versao (semver:
+  MAJOR remocao/redefinicao incompativel; MINOR novo principio/secao; PATCH
+  ajustes de texto).
+- Todo commit/PR MUST verificar conformidade com os principios — em especial
+  II (PII), VII (TDD) e X (issue-first).
 - Complexidade adicional MUST ser justificada; na duvida, prevalece a
   simplicidade (YAGNI).
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-03 | **Last Amended**: 2026-07-03
+**Version**: 1.1.0 | **Ratified**: 2026-07-03 | **Last Amended**: 2026-07-04
