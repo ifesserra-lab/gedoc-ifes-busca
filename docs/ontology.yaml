@@ -1,0 +1,323 @@
+# Ontologia do dominio — GeDoc IFES Toolkit
+# Descreve entidades, atributos, relacoes, enumeracoes e regras de dominio
+# do sistema de busca/categorizacao/resumo de documentos do portal GeDoc.
+# Fonte: codigo em src/ e a constituicao (.specify/memory/constitution.md).
+
+metadata:
+  nome: GeDoc IFES Toolkit
+  versao: 1.0.0
+  descricao: >-
+    Consulta documentos publicos do portal GeDoc do IFES por SIAPE, filtra,
+    classifica por categoria (LLM), resume (Mistral) e gera PDF.
+  fonte_oficial: https://gedoc.ifes.edu.br
+  idioma: pt-BR
+
+# ---------------------------------------------------------------------------
+# ENTIDADES
+# ---------------------------------------------------------------------------
+entities:
+
+  Servidor:
+    descricao: Servidor publico do IFES identificado pela matricula SIAPE.
+    identidade: siape
+    atributos:
+      siape:
+        tipo: string
+        formato: "^[0-9]{5,8}$"
+        obrigatorio: true
+        descricao: Matricula SIAPE (5 a 8 digitos). Chave natural.
+      nome:
+        tipo: string
+        obrigatorio: false
+        descricao: Nome do servidor, extraido do texto dos documentos.
+
+  Documento:
+    descricao: >-
+      Ato administrativo publicado no GeDoc (portaria, despacho, etc.)
+      recuperado por uma busca.
+    identidade: link
+    atributos:
+      link:
+        tipo: url
+        obrigatorio: true
+        descricao: URL canonica (/documento/<hash32>?inline). Chave do documento.
+      titulo:
+        tipo: string
+        obrigatorio: true
+      tipo:
+        tipo: enum(TipoDocumento)
+        obrigatorio: false
+        descricao: Derivado do prefixo do titulo (PORTARIA, Despacho...).
+      numero:
+        tipo: string
+        obrigatorio: false
+        descricao: Numero do ato (apos "Nº" no titulo).
+      ano:
+        tipo: integer
+        obrigatorio: false
+        descricao: Ano do ato (do titulo; senao, ano da data).
+      data:
+        tipo: date
+        formato: "DD/MM/YYYY"
+        obrigatorio: false
+      trecho:
+        tipo: string
+        obrigatorio: false
+        descricao: Snippet destacado retornado pela busca (contem o termo).
+      siapes:
+        tipo: list<string>
+        obrigatorio: false
+        descricao: Todos os SIAPE citados no trecho.
+      arquivo:
+        tipo: string
+        obrigatorio: false
+        formato: "AAAA_NUMERO_ASSUNTO.pdf"
+        descricao: Nome deterministico do PDF baixado.
+      contem_siape:
+        tipo: boolean
+        descricao: Verdadeiro se o SIAPE buscado aparece no trecho do documento.
+      categoria:
+        tipo: ref(Categoria.nome)
+        obrigatorio: false
+        descricao: Categoria atribuida (keyword ou LLM).
+      resumo:
+        tipo: string
+        obrigatorio: false
+        descricao: Resumo curto gerado pela Mistral a partir do texto do PDF.
+
+  Categoria:
+    descricao: >-
+      Rotulo de classificacao definido pelo usuario em config/categoria.json;
+      a descricao e o criterio usado pela LLM.
+    identidade: nome
+    persistencia: config/categoria.json
+    atributos:
+      nome:
+        tipo: string
+        obrigatorio: true
+        unico: true
+      descricao:
+        tipo: string
+        obrigatorio: false
+        descricao: Criterio de classificacao (prompt-base do LLM).
+
+  Repositorio:
+    descricao: Colecao-fonte do portal onde a busca ocorre.
+    identidade: codigo
+    atributos:
+      codigo:
+        tipo: enum(RepositorioCodigo)
+        obrigatorio: true
+      nome:
+        tipo: string
+
+  ResultadoBusca:
+    descricao: Saida de uma busca por SIAPE (persistida em data/resultado_<siape>.json).
+    identidade: termo
+    persistencia: data/resultado_<siape>.json
+    atributos:
+      termo:
+        tipo: string
+        descricao: SIAPE ou palavra-chave buscada.
+      total_bruto:
+        tipo: integer
+        descricao: Registros retornados pelo portal.
+      total_com_siape:
+        tipo: integer
+        descricao: Documentos que contem o SIAPE no texto.
+      documentos:
+        tipo: list<ref(Documento)>
+      descartados:
+        tipo: list<ref(Documento)>
+        descricao: Recuperados mas sem o SIAPE no trecho.
+
+  Resumo:
+    descricao: Documento agregado com tabela de categorias e resumo por documento.
+    persistencia: data/resumo_<siape>.md (+ .pdf)
+    atributos:
+      termo: {tipo: string}
+      formato: {tipo: enum(FormatoSaida)}  # markdown | pdf
+
+  Cache:
+    descricao: >-
+      Memoizacao por link de documento, evita rechamar a API. Dois tipos:
+      classificacao e resumo.
+    identidade: [tipo, chave]
+    persistencia:
+      - data/classificacao_<siape>.json
+      - data/resumos_<siape>_cache.json
+    atributos:
+      tipo: {tipo: enum(TipoCache)}   # classificacao | resumo
+      chave: {tipo: url, descricao: link do Documento}
+      valor: {tipo: string}
+
+# ---------------------------------------------------------------------------
+# RELACIONAMENTOS
+# ---------------------------------------------------------------------------
+relationships:
+  - nome: cita
+    de: Documento
+    para: Servidor
+    cardinalidade: N..N
+    via: Documento.siapes
+    descricao: Um documento pode citar varios SIAPE; um servidor aparece em varios docs.
+
+  - nome: pertence_a
+    de: Documento
+    para: Categoria
+    cardinalidade: N..1
+    descricao: Cada documento e classificado em exatamente uma categoria.
+
+  - nome: contem
+    de: ResultadoBusca
+    para: Documento
+    cardinalidade: 1..N
+
+  - nome: buscado_em
+    de: ResultadoBusca
+    para: Repositorio
+    cardinalidade: N..1
+    default: GeDoc
+
+  - nome: resume
+    de: Resumo
+    para: ResultadoBusca
+    cardinalidade: 1..1
+
+  - nome: memoiza
+    de: Cache
+    para: Documento
+    cardinalidade: 1..1
+    via: Cache.chave
+
+# ---------------------------------------------------------------------------
+# ENUMERACOES
+# ---------------------------------------------------------------------------
+enums:
+  RepositorioCodigo:
+    "0": Boletim
+    "1": GeDoc        # padrao
+    "2": Site IFES/Reitoria
+
+  TipoDocumento:
+    - PORTARIA
+    - Despacho
+    - Outro
+
+  ModoClassificacao:
+    - keyword          # regex, sem custo de API
+    - llm              # Mistral guiada por Categoria.descricao (padrao)
+
+  Ordenacao:
+    campo: [RELEVANCIA, DATA]
+    direcao: [DECRESCENTE, ASCENDENTE]
+
+  FormatoSaida: [markdown, pdf, html, json]
+
+  TipoCache: [classificacao, resumo]
+
+  CategoriaPadrao:      # sementes em config/categoria.json (editaveis)
+    - Progressao
+    - Comissao
+    - Ferias
+    - Outros
+
+# ---------------------------------------------------------------------------
+# REGRAS DE DOMINIO (invariantes)
+# ---------------------------------------------------------------------------
+domain_rules:
+  - id: R1
+    nome: Fidelidade a fonte
+    regra: >-
+      Todo dado de um Documento MUST derivar do conteudo real (PDF/trecho).
+      Resumo e categoria NAO podem inventar informacao ausente na fonte.
+    constituicao: I
+
+  - id: R2
+    nome: Filtro por SIAPE
+    regra: >-
+      Um Documento so entra em ResultadoBusca.documentos se o SIAPE buscado
+      aparecer no seu trecho (rotulado "SIAPE N" ou nao). Caso contrario vai
+      para descartados.
+    fonte: src/buscar_gedoc.py::filtrar_por_siape
+
+  - id: R3
+    nome: Nome de arquivo deterministico
+    regra: >-
+      Documento.arquivo MUST seguir AAAA_NUMERO_ASSUNTO.pdf, derivado do
+      titulo (ano do titulo ou, na ausencia, da data). Colisoes recebem sufixo.
+    fonte: src/buscar_gedoc.py::nome_arquivo
+    constituicao: III
+
+  - id: R4
+    nome: Uma categoria por documento
+    regra: >-
+      classificar MUST atribuir exatamente uma Categoria; se o LLM retornar
+      valor fora da lista, cai em "Outros" (ou ultima categoria).
+    fonte: src/categorizar.py::classificar_llm
+
+  - id: R5
+    nome: Categorias sao configuracao
+    regra: >-
+      O conjunto de Categoria vem de config/categoria.json (nome+descricao) e
+      pode ser alterado sem tocar codigo; a descricao guia a classificacao LLM.
+    constituicao: IV
+
+  - id: R6
+    nome: Idempotencia e cache
+    regra: >-
+      Reexecutar a pipeline com cache existente NAO deve repetir chamadas a
+      API. Cache e chaveado pelo link do Documento.
+    constituicao: III
+
+  - id: R7
+    nome: Privacidade / LGPD
+    regra: >-
+      PDFs, JSON de resultado, resumos e paginas (tudo em data/) contem PII de
+      terceiros e MUST NUNCA ser versionado. Segredos ficam em config/.env.
+    constituicao: II
+
+  - id: R8
+    nome: Descoberta dinamica de IDs
+    regra: >-
+      Os ids do formulario JSF/PrimeFaces MUST ser descobertos da pagina em
+      tempo de execucao; ids autogerados NAO podem ser fixados no codigo.
+    fonte: src/buscar_gedoc.py::GedocClient.abrir
+    constituicao: I
+
+  - id: R9
+    nome: Degradacao segura
+    regra: >-
+      Falha ao processar um Documento NAO aborta o lote; campo ausente vira
+      vazio, nao erro fatal. Erros externos usam retry com backoff + throttle.
+    constituicao: I
+
+  - id: R10
+    nome: SIAPE valido
+    regra: 'Servidor.siape e o termo de busca MUST casar "^[0-9]{5,8}$".'
+    fonte: src/app.py::_SIAPE_RE
+
+# ---------------------------------------------------------------------------
+# PROCESSOS (pipeline)
+# ---------------------------------------------------------------------------
+processes:
+  pipeline:
+    descricao: Fluxo canonico; cada etapa consome a saida da anterior.
+    etapas:
+      - id: buscar
+        entrada: Servidor.siape
+        saida: ResultadoBusca (+ PDFs baixados)
+        modulo: src/buscar_gedoc.py
+      - id: categorizar
+        entrada: ResultadoBusca
+        saida: Documento.categoria (+ Cache classificacao)
+        modulo: src/categorizar.py
+      - id: resumir
+        entrada: ResultadoBusca + PDFs
+        saida: Documento.resumo + Resumo(markdown) (+ Cache resumo)
+        modulo: src/resumir_mistral.py
+      - id: pdf
+        entrada: Resumo(markdown)
+        saida: Resumo(pdf)
+        modulo: src/md_para_pdf.py
+    orquestrador: src/app.py::run_pipeline

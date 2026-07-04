@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Categorias — GeDoc IFES (CRUD)</title>
+<style>
+  :root{
+    --azul:#0b5cad; --azul2:#0a4f96; --verde:#1f7a3d; --vermelho:#c0392b;
+    --bg:#eef2f7; --card:#ffffff; --linha:#e2e8f0; --txt:#1a2330; --sub:#5a6474;
+    --chip:#eaf1fb; --sombra:0 1px 3px rgba(16,32,60,.08),0 8px 24px rgba(16,32,60,.08);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#0f141b;--card:#161d27;--linha:#26303d;--txt:#e7edf5;
+      --sub:#9aa7b8;--chip:#17263c;--sombra:0 1px 3px rgba(0,0,0,.5);}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:var(--bg);color:var(--txt);line-height:1.5}
+  header{background:linear-gradient(135deg,var(--azul),var(--azul2));color:#fff;padding:20px 24px}
+  header h1{margin:0;font-size:18px;display:flex;align-items:center;gap:10px}
+  header .tag{font-size:11px;opacity:.85;font-weight:400}
+  .wrap{max-width:920px;margin:0 auto;padding:20px 16px 60px}
+
+  .toolbar{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .toolbar h2{margin:0;font-size:17px}
+  .toolbar .status{font-size:12px;color:var(--sub)}
+  .toolbar .dot{display:inline-block;width:8px;height:8px;border-radius:50%;
+    background:var(--sub);margin-right:5px;vertical-align:middle}
+  .toolbar .dot.ok{background:var(--verde)} .toolbar .dot.err{background:var(--vermelho)}
+  .spacer{flex:1}
+
+  .btn{border:0;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:600;
+    cursor:pointer;color:#fff;background:var(--azul)}
+  .btn:hover{background:var(--azul2)}
+  .btn.verde{background:var(--verde)} .btn.verde:hover{filter:brightness(.95)}
+  .btn.ghost{background:transparent;color:var(--azul);border:1px solid var(--azul)}
+  .btn.mini{padding:6px 11px;font-size:12px}
+  .btn.del{background:transparent;color:var(--vermelho);border:1px solid var(--vermelho)}
+  .btn.big{padding:11px 18px;font-size:15px}
+
+  .card{background:var(--card);border:1px solid var(--linha);border-radius:14px;
+    box-shadow:var(--sombra);overflow:hidden}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--linha);
+    font-size:14px;vertical-align:top}
+  th{background:var(--chip);font-size:11px;text-transform:uppercase;letter-spacing:.04em;
+    color:var(--sub);font-weight:700}
+  tr:last-child td{border-bottom:0}
+  td.num{color:var(--sub);width:34px}
+  td.nome{font-weight:700;white-space:nowrap}
+  td.desc{color:var(--sub)}
+  td.acoes{white-space:nowrap;text-align:right;width:1%}
+  td.acoes .btn{margin-left:6px}
+  .vazio{padding:26px 16px;text-align:center;color:var(--sub)}
+
+  /* modal */
+  dialog{border:0;border-radius:16px;padding:0;max-width:560px;width:92%;
+    box-shadow:0 20px 60px rgba(0,0,0,.35);background:var(--card);color:var(--txt)}
+  dialog::backdrop{background:rgba(10,20,35,.55)}
+  .modal-head{padding:18px 20px;border-bottom:1px solid var(--linha)}
+  .modal-head h3{margin:0;font-size:16px}
+  .modal-body{padding:20px}
+  .modal-foot{padding:16px 20px;border-top:1px solid var(--linha);display:flex;
+    justify-content:flex-end;gap:10px}
+  label{font-size:12px;color:var(--sub);text-transform:uppercase;letter-spacing:.04em;
+    display:block;margin-bottom:6px}
+  input,textarea{width:100%;font-size:15px;padding:11px 13px;border-radius:10px;
+    border:1px solid var(--linha);background:transparent;color:var(--txt);font-family:inherit}
+  input:focus,textarea:focus{outline:2px solid var(--azul);border-color:var(--azul)}
+  textarea{resize:vertical;min-height:90px;margin-top:4px}
+  .campo+.campo{margin-top:16px}
+  .erro-msg{color:var(--vermelho);font-size:13px;margin-top:10px;min-height:18px}
+
+  #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#111827;
+    color:#fff;padding:12px 18px;border-radius:10px;font-size:14px;box-shadow:var(--sombra);
+    opacity:0;transition:.3s;pointer-events:none}
+  #toast.show{opacity:1} #toast.erro{background:#7f1d1d}
+</style>
+</head>
+<body>
+<header>
+  <h1>🏷️ GeDoc IFES <span class="tag">— categorias (CRUD)</span></h1>
+</header>
+
+<div class="wrap">
+  <div class="toolbar">
+    <h2>Categorias (<span id="contador">0</span>)</h2>
+    <span class="status"><span id="dot" class="dot"></span><span id="status">carregando…</span></span>
+    <span class="spacer"></span>
+    <button class="btn ghost mini" onclick="recarregar()">↺ Recarregar</button>
+    <button class="btn big" onclick="abrirNova()">➕ Adicionar categoria</button>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr><th>#</th><th>Nome</th><th>Descrição</th><th></th></tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div id="vazio" class="vazio" style="display:none">
+      Nenhuma categoria cadastrada. Clique em <b>Adicionar categoria</b>.
+    </div>
+  </div>
+  <div class="status" style="margin-top:10px">Salvo em <code>config/categoria.json</code></div>
+</div>
+
+<!-- MODAL CRUD -->
+<dialog id="modal">
+  <div class="modal-head"><h3 id="modal-titulo">Nova categoria</h3></div>
+  <div class="modal-body">
+    <div class="campo">
+      <label for="nome">Nome</label>
+      <input id="nome" placeholder="ex.: Progressão" autocomplete="off">
+    </div>
+    <div class="campo">
+      <label for="desc">Descrição (critério usado pela IA)</label>
+      <textarea id="desc" placeholder="ex.: Progressão funcional por mérito ou capacitação, avanço na carreira."></textarea>
+    </div>
+    <div class="erro-msg" id="erro-msg"></div>
+  </div>
+  <div class="modal-foot">
+    <button class="btn ghost" onclick="fecharModal()">Cancelar</button>
+    <button class="btn verde" onclick="salvarModal()">💾 Salvar</button>
+  </div>
+</dialog>
+
+<div id="toast"></div>
+
+<script>
+  var cats=[];
+  var editando=-1;
+  var modal=document.getElementById('modal');
+
+  function setStatus(txt,cls){document.getElementById('status').textContent=txt;
+    document.getElementById('dot').className='dot'+(cls?(' '+cls):'');}
+
+  async function api(metodo,corpo){
+    var opt={method:metodo,headers:{'Content-Type':'application/json'}};
+    if(corpo!==undefined) opt.body=JSON.stringify(corpo);
+    var r=await fetch('/api/categorias',opt);
+    if(!r.ok){var e=await r.json().catch(function(){return{};});throw new Error(e.erro||('HTTP '+r.status));}
+    return r.json();
+  }
+  async function carregar(){
+    try{var d=await api('GET');cats=d.categorias||[];setStatus('sincronizado','ok');render();}
+    catch(e){setStatus('offline','err');toast('Falha ao carregar: '+e.message,true);}
+  }
+  function recarregar(){setStatus('carregando…');carregar();}
+  async function persistir(msg){
+    try{var d=await api('POST',{categorias:cats});setStatus('salvo ('+d.total+')','ok');toast(msg);}
+    catch(e){setStatus('erro ao salvar','err');toast('Falha ao salvar: '+e.message,true);}
+  }
+
+  function render(){
+    document.getElementById('contador').textContent=cats.length;
+    var tb=document.getElementById('tbody');
+    document.getElementById('vazio').style.display=cats.length?'none':'block';
+    tb.innerHTML=cats.map(function(c,i){
+      return '<tr>'+
+        '<td class="num">'+(i+1)+'</td>'+
+        '<td class="nome">'+esc(c.nome)+'</td>'+
+        '<td class="desc">'+esc(c.descricao||'')+'</td>'+
+        '<td class="acoes">'+
+          '<button class="btn ghost mini" onclick="abrirEdit('+i+')">✏️ Editar</button>'+
+          '<button class="btn del mini" onclick="remover('+i+')">🗑 Remover</button>'+
+        '</td></tr>';
+    }).join('');
+  }
+  function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+  function abrirNova(){
+    editando=-1;
+    document.getElementById('modal-titulo').textContent='Nova categoria';
+    document.getElementById('nome').value='';
+    document.getElementById('desc').value='';
+    document.getElementById('erro-msg').textContent='';
+    modal.showModal();
+    document.getElementById('nome').focus();
+  }
+  function abrirEdit(i){
+    editando=i;
+    document.getElementById('modal-titulo').textContent='Editar categoria';
+    document.getElementById('nome').value=cats[i].nome;
+    document.getElementById('desc').value=cats[i].descricao||'';
+    document.getElementById('erro-msg').textContent='';
+    modal.showModal();
+    document.getElementById('nome').focus();
+  }
+  function fecharModal(){modal.close();}
+
+  async function salvarModal(){
+    var nome=document.getElementById('nome').value.trim();
+    var desc=document.getElementById('desc').value.trim();
+    var err=document.getElementById('erro-msg');
+    if(!nome){err.textContent='Informe o nome da categoria.';return;}
+    var dup=cats.findIndex(function(c,idx){return idx!==editando && c.nome.toLowerCase()===nome.toLowerCase();});
+    if(dup>=0){err.textContent='Já existe uma categoria com esse nome.';return;}
+    if(editando>=0) cats[editando]={nome:nome,descricao:desc};
+    else cats.push({nome:nome,descricao:desc});
+    modal.close();render();
+    await persistir(editando>=0?'Categoria atualizada.':'Categoria adicionada.');
+  }
+  async function remover(i){
+    if(!confirm('Remover a categoria "'+cats[i].nome+'"?')) return;
+    cats.splice(i,1);render();
+    await persistir('Categoria removida.');
+  }
+
+  // fechar modal com ESC ja e nativo; clicar fora fecha:
+  modal.addEventListener('click',function(e){if(e.target===modal) modal.close();});
+
+  var t;
+  function toast(m,erro){var el=document.getElementById('toast');el.textContent=m;
+    el.className='show'+(erro?' erro':'');clearTimeout(t);t=setTimeout(function(){el.className='';},2000);}
+
+  carregar();
+</script>
+</body>
+</html>
