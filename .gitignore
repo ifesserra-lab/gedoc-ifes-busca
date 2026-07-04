@@ -10,7 +10,8 @@ __pycache__/
 *.pyc
 .venv/
 venv/
-.claude/
+.claude/*
+!.claude/agents/
 .DS_Store
 
 # --- temporarios do scraping ---

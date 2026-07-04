@@ -1,6 +1,7 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 → 1.1.0  (MINOR: novos principios e secao de stack)
+- Version change: 1.1.0 → 1.2.0  (MINOR: principio XI - agentes especializados)
+- Historico: 1.0.0 (inicial) → 1.1.0 (OO/TDD/patterns/stack/issue-first)
 - Ratification: 2026-07-03 (mantida) | Last Amended: 2026-07-04
 - Principles:
   I. Fidelidade a Fonte Oficial       (mantido)
@@ -12,7 +13,8 @@ Sync Impact Report
   VII. Test-Driven Development        (novo, NON-NEGOTIABLE)
   VIII. Codigo Pequeno e Simples      (novo)
   IX. Padroes de Projeto              (novo)
-  X. Issue-First no GitHub            (novo, NON-NEGOTIABLE)
+  X. Issue-First no GitHub            (NON-NEGOTIABLE)
+  XI. Agentes Especializados          (novo em 1.2.0)
 - Added sections: nenhuma nova (Restricoes Tecnicas e Fluxo de Trabalho atualizados)
 - Removed sections: none
 - Templates alignment:
@@ -128,6 +130,18 @@ Nenhuma execucao/implementacao comeca sem uma issue aberta.
 
 Rationale: rastreabilidade, revisao e historico do "porque" de cada mudanca.
 
+### XI. Agentes Especializados
+Usar os subagents definidos em `.claude/agents/` para suas especialidades.
+- Trabalho de Tauri 2.0 / Rust / Vue / MVC MUST ser delegado ao agente
+  `tauri-mvc-expert` (`.claude/agents/tauri-mvc-expert.md`).
+- Novos dominios recorrentes MUST ganhar um agente proprio em `.claude/agents/`,
+  versionado com o projeto.
+- O agente acionado MUST respeitar os demais principios (VII TDD, VI OO,
+  IX padroes, X issue-first).
+
+Rationale: concentrar a especialidade em agentes reutilizaveis torna as decisoes
+tecnicas consistentes e independentes de quem executa.
+
 ## Restricoes Tecnicas
 
 Stack alvo do produto (aplicacao desktop):
@@ -150,9 +164,11 @@ throttle e retry com backoff.
 
 1. **Abrir issue no GitHub** (obrigatorio, principio X) antes de qualquer tarefa.
 2. Especificar/planejar via spec-kit (`spec.md` → `plan.md` → `tasks.md`).
-3. **TDD:** escrever teste que falha → implementar minimo → refatorar.
-4. Commits/PRs referenciam a issue; PR so integra com testes verdes.
-5. Validar saidas de ponta a ponta antes de concluir.
+3. Delegar ao agente especializado de `.claude/agents/` quando aplicavel
+   (ex.: `tauri-mvc-expert` para Tauri/Rust/Vue).
+4. **TDD:** escrever teste que falha → implementar minimo → refatorar.
+5. Commits/PRs referenciam a issue; PR so integra com testes verdes e revisao.
+6. Validar saidas de ponta a ponta antes de concluir.
 
 Pipeline de dominio (etapas encadeadas, idempotentes via cache):
 `buscar → categorizar → resumir → pdf`.
@@ -168,4 +184,4 @@ Esta constituicao supersede outras praticas do projeto.
 - Complexidade adicional MUST ser justificada; na duvida, prevalece a
   simplicidade (YAGNI).
 
-**Version**: 1.1.0 | **Ratified**: 2026-07-03 | **Last Amended**: 2026-07-04
+**Version**: 1.2.0 | **Ratified**: 2026-07-03 | **Last Amended**: 2026-07-04
