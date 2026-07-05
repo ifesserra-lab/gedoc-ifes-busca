@@ -1,0 +1,19 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<partial-response><changes><update id="j_idt65:panelResultado"><![CDATA[
+<div class="mensagemTotal">1.234 registros encontrados</div>
+<div class="linha">
+  <a href="https://gedoc.ifes.edu.br/documento/0123456789abcdef0123456789abcdef?inline" target="_blank" class="resultadoBuscaLinhaAzul">PORTARIA Nº 10 - 2024 - Progressão de servidor</a>
+  <span class="resultadoBuscaLinhaVerde">10/01/2024</span>
+  <div class="highlight">Designa o servidor SIAPE 1998547 para exercer a função de coordenador</div>
+</div>
+<div class="linha">
+  <a href="https://gedoc.ifes.edu.br/documento/fedcba9876543210fedcba9876543210?inline" target="_blank" class="resultadoBuscaLinhaAzul">DESPACHO Nº 22 - 2024 - Análise de processo</a>
+  <span class="resultadoBuscaLinhaVerde">15/02/2024</span>
+  <div class="highlight">Processo administrativo 30022/2024 referente a outro assunto totalmente diferente</div>
+</div>
+<div class="linha">
+  <a href="https://gedoc.ifes.edu.br/documento/11112222333344445555666677778888?inline" target="_blank" class="resultadoBuscaLinhaAzul">PORTARIA Nº 30 - 2023 - Comissão de férias</a>
+  <span class="resultadoBuscaLinhaVerde">20/03/2023</span>
+  <div class="highlight">O servidor matrícula 1998547 foi designado para a comissão de férias</div>
+</div>
+]]></update></changes></partial-response>
