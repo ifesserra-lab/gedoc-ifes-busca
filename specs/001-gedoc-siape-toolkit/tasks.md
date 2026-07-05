@@ -29,8 +29,8 @@ forma independente. Backend Rust em `src-tauri/`, frontend Vue em `app/`.
 
 - [x] T006 Modelar entidades de domínio em `src-tauri/src/domain/` (Servidor/siape, Documento, Categoria, texto, nome_arquivo)
 - [x] T007 [P] Definir `AppError` (thiserror, serializável) em `src-tauri/src/error.rs`
-- [~] T008 [P] Traits/ports em `src-tauri/src/ports/` — GedocRepository, Classificador, HttpPort ✅; Resumidor/Cache pendentes (US5/US6)
-- [ ] T009 Implementar `Cache` em arquivos (por link) em `src-tauri/src/services/cache.rs` (R6) — **pendente; bloqueia FR-010/SC-003/SC-006**, fazer em US5 antes de US6
+- [~] T008 [P] Traits/ports em `src-tauri/src/ports/` — GedocRepository, Classificador, HttpPort, `ports::ia::ChatIa` (US5) ✅; Resumidor pendente (US6)
+- [x] T009 `CacheArquivo` genérico por link em `src-tauri/src/services/cache.rs` (R6) — feito em US5 (usado pela classificação `llm`); reutilizável tal como está por US6 (resumo), com outro arquivo
 - [x] T010 Registrar `tauri::Builder`, plugins e `invoke_handler` em `src-tauri/src/lib.rs`
 - [x] T011 [P] Camada de serviços IPC no front: `app/src/services/ipc.ts` (wrappers tipados de `invoke`)
 
@@ -87,11 +87,12 @@ forma independente. Backend Rust em `src-tauri/`, frontend Vue em `app/`.
 **Meta**: uma categoria por documento (keyword|llm via config).
 **Teste independente**: cada doc com 1 categoria; soma = total.
 
-- [ ] T032 [P] [US5] Teste: Strategy keyword e fallback "Outros" em `src-tauri/tests/classificar.rs` (R4)
-- [ ] T033 [P] [US5] Teste: LLM fora da lista → "Outros"; cache por link em `src-tauri/tests/classificar_llm.rs` (R4,R6)
-- [ ] T034 [US5] `Classificador` (Strategy keyword/llm) em `src-tauri/src/services/classificador.rs` (R4,R5)
-- [ ] T035 [US5] Carregar `config/categoria.json` em `src-tauri/src/services/categorias.rs` (R5)
-- [ ] T036 [US5] Throttle + retry (429) no adapter de IA em `src-tauri/src/services/ia_client.rs` (R9)
+- [x] T032 [P] [US5] Teste: Strategy keyword e fallback "Outros" em `src-tauri/tests/classificar.rs` (R4)
+- [x] T033 [P] [US5] Teste: LLM fora da lista → "Outros"; cache por link em `src-tauri/tests/classificar_llm.rs` (R4,R6)
+- [x] T034 [US5] `Classificador` (Strategy keyword/llm) — `ClassificadorPalavraChave`/`ClassificadorLlm` (impl do trait) ficaram em `src-tauri/src/ports/classificador.rs`, junto do trait já existente; a orquestração que escolhe o modo e liga cache/fallback (`ModoClassificacao`, `classificar_lote`) foi para `src-tauri/src/services/classificador.rs` — é essa função que `commands::buscar` chama (R4,R5,R6,R11)
+- [x] T035 [US5] Carregar `config/categoria.json` em `src-tauri/src/services/categorias.rs` (R5) — inclui `caminho_padrao()` (candidatos relativos, análogo à resolução do `.env`); CRUD de escrita continua TODO de US8
+- [x] T036 [US5] Throttle + retry (429/5xx) no adapter de IA — ficou em `src-tauri/src/ports/ia.rs` (não `services/ia_client.rs`): é uma fronteira de I/O (Port/Adapter), mesmo padrão de `ports::http::ReqwestHttp`. Inclui `ChatIa` (trait), `MistralClient` (adapter, throttle 1.2s + retry 2^tentativa até 4 tentativas) e a leitura da chave (`resolver_api_key`: env `MISTRAL_API_KEY`/`MISTRAL_KEY` ou `config/.env`/`.env`) (R9)
+- [x] `commands::buscar`: fiado — `buscar_por_siape` classifica cada documento válido antes de agrupar; modo default `keyword` (instantâneo, sem API); modo `llm` só ativa com `input.modo == "llm"` **e** chave configurada, senão degrada para `keyword` (R11). `montar_resultado` agora agrupa por `doc.categoria`, na ordem de `config/categoria.json`, omitindo grupos vazios
 
 ## Phase 8: US6 — Resumir cada documento (P2)
 
