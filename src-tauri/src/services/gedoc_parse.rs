@@ -150,7 +150,10 @@ pub fn parse_resposta(xml: &str) -> Result<RespostaParseada, AppError> {
 fn texto_limpo(fragmento: &str) -> String {
     let sem_tags = RE_TAGS.replace_all(fragmento, " ");
     let sem_entidades = decodificar_entidades(&sem_tags);
-    RE_ESPACOS.replace_all(&sem_entidades, " ").trim().to_string()
+    RE_ESPACOS
+        .replace_all(&sem_entidades, " ")
+        .trim()
+        .to_string()
 }
 
 /// Decodifica as entidades HTML mais comuns nas páginas do portal. Não é um
@@ -206,7 +209,10 @@ mod tests {
     fn documento_sem_rotulo_siape_nao_extrai_siapes_mas_mantem_trecho() {
         let r = parse_resposta(FIXTURE_OK).unwrap();
         let d3 = &r.documentos[2];
-        assert!(d3.siapes.is_empty(), "sem a palavra SIAPE, siapes[] fica vazio");
+        assert!(
+            d3.siapes.is_empty(),
+            "sem a palavra SIAPE, siapes[] fica vazio"
+        );
         assert!(d3.trecho.contains("1998547"));
     }
 
@@ -253,6 +259,9 @@ mod tests {
         assert_eq!(doc.numero.as_deref(), Some("5"));
         assert_eq!(doc.ano, Some(2024));
         assert_eq!(doc.trecho.as_deref(), Some("SIAPE 1998547 designado"));
-        assert!(doc.contem_siape, "contem_siape inicial é true; filtro ajusta depois");
+        assert!(
+            doc.contem_siape,
+            "contem_siape inicial é true; filtro ajusta depois"
+        );
     }
 }

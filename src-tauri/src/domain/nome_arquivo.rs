@@ -35,7 +35,9 @@ pub fn nome_arquivo(doc: &Documento) -> String {
     let mut assunto = RE_PREFIXO_TIPO.replace(titulo, "").into_owned();
     assunto = regex_numero_titulo().replacen(&assunto, 1, "").into_owned();
     assunto = RE_ANO_PREFIXO.replace(&assunto, "").into_owned();
-    assunto = assunto.trim_matches(|c: char| " -–—".contains(c)).to_string();
+    assunto = assunto
+        .trim_matches(|c: char| " -–—".contains(c))
+        .to_string();
 
     let bruto = format!("{ano}_{numero}_{assunto}");
     let saneado = RE_CHARS_ILEGAIS.replace_all(&bruto, "_");

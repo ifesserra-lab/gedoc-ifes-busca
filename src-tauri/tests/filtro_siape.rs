@@ -21,7 +21,10 @@ fn doc(trecho: &str, siapes: Vec<&str>) -> Documento {
 
 #[test]
 fn documento_que_cita_o_siape_no_trecho_permanece_incluido() {
-    let mut docs = vec![doc("Designa o servidor SIAPE 1998547 para...", vec!["1998547"])];
+    let mut docs = vec![doc(
+        "Designa o servidor SIAPE 1998547 para...",
+        vec!["1998547"],
+    )];
     filtrar_por_siape(&mut docs, "1998547");
     assert!(docs[0].contem_siape);
 }
