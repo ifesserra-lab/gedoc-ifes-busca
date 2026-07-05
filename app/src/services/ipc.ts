@@ -67,9 +67,9 @@ export function mensagemDeErro(erro: unknown): string {
 }
 
 /**
- * US1/US2/US3 — busca documentos do GeDoc para um SIAPE.
- * TODO(rede): o backend ainda responde `FalhaPortal` (GedocRepository não
- * implementado); o contrato de entrada/saída já está estável.
+ * US1/US2/US3 — busca documentos do GeDoc para um SIAPE. O backend faz a
+ * coleta real no portal (GedocRepository), filtra por SIAPE (R2) e agrupa por
+ * categoria; erros chegam como `AppError` (ver `mensagemDeErro`).
  */
 export async function buscarPorSiape(input: BuscarPorSiapeInput): Promise<ResultadoView> {
   return invoke<ResultadoView>("buscar_por_siape", { input });
