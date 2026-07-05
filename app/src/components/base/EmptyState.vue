@@ -42,14 +42,15 @@ withDefaults(
 }
 
 .empty-state__titulo {
-  font-size: var(--text-lg);
-  color: var(--text);
+  font-size: var(--text-20);
+  color: var(--ink);
   font-weight: 600;
   margin: 0;
+  text-wrap: balance;
 }
 
 .empty-state__descricao {
-  font-size: var(--text-sm);
+  font-size: var(--text-14);
   max-width: 32ch;
   margin: 0;
 }

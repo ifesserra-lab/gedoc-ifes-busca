@@ -85,7 +85,7 @@ function confirmarRemocao(): void {
         <h1 class="categorias__titulo">Categorias</h1>
         <p class="categorias__dica">Categorias usadas para classificar os documentos encontrados na busca.</p>
       </div>
-      <UButton icon="i-lucide-plus" size="lg" data-testid="nova-categoria" @click="abrirCriacao">
+      <UButton icon="i-lucide-plus" size="lg" class="alvo-minimo" data-testid="nova-categoria" @click="abrirCriacao">
         Nova categoria
       </UButton>
     </header>
@@ -104,28 +104,32 @@ function confirmarRemocao(): void {
       <UButton icon="i-lucide-plus" @click="abrirCriacao">Nova categoria</UButton>
     </EmptyState>
 
-    <UTable v-else :data="store.itens" :columns="columns" class="categorias__tabela">
-      <template #acoes-cell="{ row }">
-        <div class="categorias__acoes-linha">
-          <UButton
-            icon="i-lucide-pencil"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            aria-label="Editar categoria"
-            @click="abrirEdicao(row.index)"
-          />
-          <UButton
-            icon="i-lucide-trash-2"
-            color="error"
-            variant="ghost"
-            size="sm"
-            aria-label="Remover categoria"
-            @click="pedirRemocao(row.index)"
-          />
-        </div>
-      </template>
-    </UTable>
+    <div v-else class="categorias__painel">
+      <UTable :data="store.itens" :columns="columns" class="categorias__tabela">
+        <template #acoes-cell="{ row }">
+          <div class="categorias__acoes-linha">
+            <UButton
+              icon="i-lucide-pencil"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              class="alvo-minimo"
+              aria-label="Editar categoria"
+              @click="abrirEdicao(row.index)"
+            />
+            <UButton
+              icon="i-lucide-trash-2"
+              color="error"
+              variant="ghost"
+              size="sm"
+              class="alvo-minimo"
+              aria-label="Remover categoria"
+              @click="pedirRemocao(row.index)"
+            />
+          </div>
+        </template>
+      </UTable>
+    </div>
 
     <UModal
       v-model:open="modalAberto"
@@ -187,22 +191,31 @@ function confirmarRemocao(): void {
 }
 
 .categorias__titulo {
-  font-size: var(--text-xl);
+  font-size: var(--text-28);
   font-weight: 700;
-  color: var(--text);
+  color: var(--ink);
   margin: 0 0 var(--sp-1);
+  text-wrap: balance;
 }
 
 .categorias__dica {
-  font-size: var(--text-sm);
+  font-size: var(--text-14);
   color: var(--muted);
   margin: 0;
 }
 
 .categorias__sucesso {
-  font-size: var(--text-sm);
+  font-size: var(--text-14);
   color: var(--success);
   margin: 0;
+}
+
+.categorias__painel {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
 .categorias__acoes-linha {

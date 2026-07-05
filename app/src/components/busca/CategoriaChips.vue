@@ -25,7 +25,7 @@ const total = () => props.grupos.reduce((soma, grupo) => soma + grupo.qtd, 0);
       @click="emit('selecionar', null)"
     >
       <UBadge :color="!selecionada ? 'primary' : 'neutral'" :variant="!selecionada ? 'solid' : 'subtle'">
-        Todas ({{ total() }})
+        Todos <span class="mono">({{ total() }})</span>
       </UBadge>
     </button>
 
@@ -41,7 +41,7 @@ const total = () => props.grupos.reduce((soma, grupo) => soma + grupo.qtd, 0);
         :color="selecionada === grupo.categoria ? 'primary' : 'neutral'"
         :variant="selecionada === grupo.categoria ? 'solid' : 'subtle'"
       >
-        {{ grupo.categoria }} ({{ grupo.qtd }})
+        {{ grupo.categoria }} <span class="mono">({{ grupo.qtd }})</span>
       </UBadge>
     </button>
   </div>
@@ -66,5 +66,6 @@ const total = () => props.grupos.reduce((soma, grupo) => soma + grupo.qtd, 0);
 .categoria-chips__item:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
+  box-shadow: 0 0 0 3px var(--focus-ring-soft);
 }
 </style>

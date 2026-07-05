@@ -26,7 +26,7 @@ const links = [
   <UApp>
     <div class="app-shell">
       <header class="app-header">
-        <span class="app-header__marca">GeDoc IFES Toolkit</span>
+        <span class="app-header__marca">GeDoc <span class="app-header__marca-acento">IFES</span></span>
 
         <nav class="app-header__nav" aria-label="Navegação principal">
           <RouterLink
@@ -41,7 +41,7 @@ const links = [
         </nav>
 
         <UButton
-          class="app-header__toggle"
+          class="app-header__toggle alvo-minimo"
           :icon="ehEscuro ? 'i-lucide-sun' : 'i-lucide-moon'"
           color="neutral"
           variant="ghost"
@@ -63,34 +63,42 @@ const links = [
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: var(--surface);
-  color: var(--text);
+  background-color: var(--paper);
+  color: var(--ink);
 }
 
 .app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: var(--sp-6);
-  padding: var(--sp-4) var(--sp-6);
+  padding: var(--sp-3) var(--sp-6);
   border-bottom: 1px solid var(--border);
   background-color: var(--surface);
 }
 
 .app-header__marca {
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--text);
+  font-size: var(--text-16);
+  font-weight: 700;
+  color: var(--ink);
   white-space: nowrap;
+}
+
+.app-header__marca-acento {
+  color: var(--accent);
 }
 
 .app-header__nav {
   display: flex;
-  gap: var(--sp-4);
+  gap: var(--sp-5);
   flex: 1;
 }
 
 .app-header__link {
-  font-size: var(--text-sm);
+  font-size: var(--text-14);
+  font-weight: 500;
   color: var(--muted);
   text-decoration: none;
   padding: var(--sp-2) var(--sp-1);
@@ -98,7 +106,7 @@ const links = [
 }
 
 .app-header__link:hover {
-  color: var(--text);
+  color: var(--ink);
 }
 
 .app-header__link--ativo {
@@ -107,13 +115,8 @@ const links = [
   font-weight: 600;
 }
 
-.app-header__toggle {
-  min-width: 40px;
-  min-height: 40px;
-}
-
 .app-main {
   flex: 1;
-  padding: var(--sp-6);
+  padding: var(--sp-8) var(--sp-6);
 }
 </style>

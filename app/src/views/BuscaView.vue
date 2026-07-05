@@ -1,8 +1,9 @@
 <script setup lang="ts">
-// View (US1 — recomposta com Nuxt UI + tokens; US3 preserva o contrato de
-// campo SIAPE + estados). Nenhuma regra de negócio aqui: tudo delega à
-// store (ViewModel) — cinco estados (Constituição XII): idle, loading,
-// vazio, erro, sucesso.
+// View (US1 — redesign aprovado: minimalista institucional, acento
+// verde-pinho, dado em mono tabular; ver
+// specs/002-ui-nuxt-minimalista/design-tokens.md). Nenhuma regra de negócio
+// aqui: tudo delega à store (ViewModel) — cinco estados (Constituição XII):
+// idle, loading, vazio, erro, sucesso.
 import EmptyState from "@/components/base/EmptyState.vue";
 import ErrorState from "@/components/base/ErrorState.vue";
 import LoadingState from "@/components/base/LoadingState.vue";
@@ -16,37 +17,37 @@ const store = useBuscaStore();
 <template>
   <section class="busca">
     <header class="busca__intro">
-      <h1 class="busca__titulo">Consulta por SIAPE</h1>
-      <p class="busca__dica">
-        Informe a matrícula SIAPE (5 a 8 dígitos numéricos) para listar os documentos do GeDoc.
-      </p>
-    </header>
+      <p class="busca__eyebrow label-caps">Consulta GeDoc</p>
+      <h1 class="busca__titulo text-balance">Buscar por matrícula SIAPE</h1>
 
-    <form class="busca__form" @submit.prevent="store.buscar()">
-      <div class="busca__campo">
-        <label class="busca__label" for="siape">Matrícula SIAPE</label>
-        <UInput
-          id="siape"
-          v-model="store.siape"
-          inputmode="numeric"
-          autocomplete="off"
-          placeholder="Ex.: 1998547"
-          size="lg"
-          :color="store.estado === 'erro' ? 'error' : undefined"
-          :aria-invalid="store.estado === 'erro'"
+      <form class="busca__form" @submit.prevent="store.buscar()">
+        <div class="busca__campo">
+          <label class="busca__label" for="siape">Matrícula SIAPE</label>
+          <UInput
+            id="siape"
+            v-model="store.siape"
+            class="busca__input mono"
+            inputmode="numeric"
+            autocomplete="off"
+            placeholder="Ex.: 1998547"
+            size="xl"
+            :color="store.estado === 'erro' ? 'error' : undefined"
+            :aria-invalid="store.estado === 'erro'"
+            :disabled="store.estado === 'loading'"
+          />
+        </div>
+        <UButton
+          type="submit"
+          size="xl"
+          class="busca__botao alvo-primario"
+          :loading="store.estado === 'loading'"
           :disabled="store.estado === 'loading'"
-        />
-      </div>
-      <UButton
-        type="submit"
-        size="lg"
-        class="busca__botao"
-        :loading="store.estado === 'loading'"
-        :disabled="store.estado === 'loading'"
-      >
-        {{ store.estado === "loading" ? "Buscando..." : "Buscar" }}
-      </UButton>
-    </form>
+        >
+          {{ store.estado === "loading" ? "Buscando..." : "Buscar" }}
+        </UButton>
+      </form>
+      <p class="busca__hint">Informe de 5 a 8 dígitos numéricos.</p>
+    </header>
 
     <div class="busca__conteudo">
       <LoadingState v-if="store.estado === 'loading'" label="Buscando documentos..." :linhas="4" />
@@ -64,10 +65,39 @@ const store = useBuscaStore();
       />
 
       <div v-else-if="store.estado === 'resultado' && store.resultado" class="busca__resultado">
-        <p class="busca__total">
-          <strong>{{ store.resultado.total }}</strong> documento(s) para o SIAPE
-          <strong>{{ store.resultado.termo }}</strong>
-        </p>
+        <div class="busca__resumo">
+          <p class="busca__resumo-texto">
+            <span class="mono busca__resumo-numero">{{ store.resultado.total }}</span>
+            documento(s) · SIAPE <span class="mono">{{ store.resultado.termo }}</span>
+          </p>
+
+          <div class="busca__resumo-acoes">
+            <UTooltip text="Geração de PDF do resumo ainda não disponível (backend em desenvolvimento).">
+              <UButton
+                icon="i-lucide-file-text"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                class="alvo-minimo"
+                aria-disabled="true"
+              >
+                PDF do resumo
+              </UButton>
+            </UTooltip>
+            <UTooltip text="Exportação em ZIP ainda não disponível (backend em desenvolvimento).">
+              <UButton
+                icon="i-lucide-download"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                class="alvo-minimo"
+                aria-disabled="true"
+              >
+                Baixar ZIP
+              </UButton>
+            </UTooltip>
+          </div>
+        </div>
 
         <CategoriaChips
           :grupos="store.resultado.categorias"
@@ -75,23 +105,14 @@ const store = useBuscaStore();
           @selecionar="store.selecionarCategoria"
         />
 
-        <div class="busca__acoes-globais">
-          <span title="Geração de PDF do resumo ainda não disponível (backend em desenvolvimento).">
-            <UButton icon="i-lucide-file-text" color="neutral" variant="outline" size="sm" disabled>
-              PDF do resumo
-            </UButton>
-          </span>
-          <span title="Exportação em ZIP ainda não disponível (backend em desenvolvimento).">
-            <UButton icon="i-lucide-download" color="neutral" variant="outline" size="sm" disabled>
-              Baixar ZIP
-            </UButton>
-          </span>
-        </div>
-
-        <div v-for="grupo in store.gruposFiltrados" :key="grupo.categoria" class="busca__grupo">
-          <h2 class="busca__grupo-titulo">{{ grupo.categoria }} ({{ grupo.qtd }})</h2>
-          <div class="busca__lista">
-            <DocItem v-for="item in grupo.itens" :key="item.link" :doc="item" />
+        <div class="busca__painel">
+          <div v-for="(grupo, indice) in store.gruposFiltrados" :key="grupo.categoria" class="busca__grupo">
+            <h2 class="busca__grupo-titulo label-caps" :class="{ 'busca__grupo-titulo--com-divisor': indice > 0 }">
+              {{ grupo.categoria }} · <span class="mono">{{ grupo.qtd }}</span>
+            </h2>
+            <div class="busca__lista">
+              <DocItem v-for="item in grupo.itens" :key="item.link" :doc="item" :categoria="grupo.categoria" />
+            </div>
           </div>
         </div>
       </div>
@@ -103,22 +124,20 @@ const store = useBuscaStore();
 .busca {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-6);
+  gap: var(--sp-8);
   max-width: 960px;
   margin: 0 auto;
 }
 
-.busca__titulo {
-  font-size: var(--text-xl);
-  font-weight: 700;
-  color: var(--text);
-  margin: 0 0 var(--sp-1);
+.busca__eyebrow {
+  margin: 0 0 var(--sp-2);
 }
 
-.busca__dica {
-  font-size: var(--text-sm);
-  color: var(--muted);
-  margin: 0;
+.busca__titulo {
+  font-size: var(--text-28);
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 var(--sp-5);
 }
 
 .busca__form {
@@ -136,13 +155,19 @@ const store = useBuscaStore();
 }
 
 .busca__label {
-  font-size: var(--text-sm);
+  font-size: var(--text-14);
   font-weight: 500;
-  color: var(--text);
+  color: var(--ink);
 }
 
 .busca__botao {
-  min-height: 40px;
+  min-height: 48px;
+}
+
+.busca__hint {
+  font-size: var(--text-13);
+  color: var(--muted);
+  margin: var(--sp-2) 0 0;
 }
 
 .busca__conteudo {
@@ -152,30 +177,59 @@ const store = useBuscaStore();
 .busca__resultado {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
+  gap: var(--sp-5);
 }
 
-.busca__total {
-  font-size: var(--text-sm);
+.busca__resumo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.busca__resumo-texto {
+  font-size: var(--text-14);
   color: var(--muted);
   margin: 0;
-}
-
-.busca__acoes-globais {
   display: flex;
+  align-items: baseline;
   gap: var(--sp-2);
 }
 
+.busca__resumo-numero {
+  font-size: var(--text-34);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.busca__resumo-acoes {
+  display: flex;
+  gap: var(--sp-1);
+}
+
+.busca__painel {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--sp-5) var(--sp-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
 .busca__grupo-titulo {
-  font-size: var(--text-md);
-  font-weight: 600;
-  color: var(--text);
-  margin: 0 0 var(--sp-2);
+  margin: 0 0 var(--sp-3);
+}
+
+.busca__grupo-titulo--com-divisor {
+  padding-top: var(--sp-5);
+  border-top: 1px solid var(--border);
 }
 
 .busca__lista {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
 }
 </style>
