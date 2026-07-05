@@ -16,7 +16,12 @@ pub mod services;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![commands::buscar::buscar_por_siape])
+        .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![
+            commands::buscar::buscar_por_siape,
+            commands::documento::baixar_documento,
+            commands::documento::abrir_documento,
+        ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar a aplicação Tauri");
 }

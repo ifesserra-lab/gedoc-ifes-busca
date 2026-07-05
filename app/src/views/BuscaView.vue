@@ -111,7 +111,13 @@ const store = useBuscaStore();
               {{ grupo.categoria }} · <span class="mono">{{ grupo.qtd }}</span>
             </h2>
             <div class="busca__lista">
-              <DocItem v-for="item in grupo.itens" :key="item.link" :doc="item" :categoria="grupo.categoria" />
+              <DocItem
+                v-for="item in grupo.itens"
+                :key="item.link"
+                :doc="item"
+                :categoria="grupo.categoria"
+                :siape="store.resultado.termo"
+              />
             </div>
           </div>
         </div>

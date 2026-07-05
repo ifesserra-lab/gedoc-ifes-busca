@@ -9,7 +9,7 @@
 Aplicativo desktop que, a partir de uma matrícula SIAPE, busca no portal GeDoc,
 filtra por presença do SIAPE, baixa os documentos, classifica por categoria
 configurável, resume e gera relatório — tudo por uma UI. A stack alvo (constituição
-v1.2.0) é **Tauri 2.0 (Rust) + Vue 3 + Pinia** em arquitetura **MVC**, com
+v1.3.0) é **Tauri 2.0 (Rust) + Vue 3 + Pinia** em arquitetura **MVC**, com
 **TDD**, OO, código pequeno e padrões de projeto. A pipeline de domínio
 (`buscar → categorizar → resumir → pdf`) e as regras R1–R10 vêm de
 [docs/ontology.yaml](../../docs/ontology.yaml). A implementação Python atual em
@@ -19,9 +19,11 @@ v1.2.0) é **Tauri 2.0 (Rust) + Vue 3 + Pinia** em arquitetura **MVC**, com
 
 **Language/Version**: Rust 1.80+ (backend Tauri) · TypeScript 5 / Vue 3.5 (frontend)
 
-**Primary Dependencies**: Tauri 2.0; plugins oficiais `tauri-plugin-http`
-(acesso ao portal), `tauri-plugin-fs`, `tauri-plugin-dialog`; Vue 3 + Pinia +
-Vue Router; serviço externo de IA (classificação/resumo) via HTTP.
+**Primary Dependencies**: Tauri 2.0; acesso ao portal via `reqwest` (blocking,
+cookie jar, retry/backoff) atrás do port `HttpPort` — decisão de #1: `reqwest`
+já vem fixado transitivamente pelo Tauri e mantém a orquestração testável por
+dublê; `tauri-plugin-opener` (abrir PDF baixado — #4); Vue 3 + Pinia + Vue
+Router; serviço externo de IA (classificação/resumo) via HTTP.
 
 **Storage**: sistema de arquivos local — `data/` (resultados, PDFs, resumos,
 caches) e `config/` (categorias, credenciais). Sem banco relacional.
@@ -58,9 +60,10 @@ serviço de IA (throttle + retry); nenhuma PII versionada (Princípio II).
 | VIII Código pequeno | Comandos/serviços curtos; um propósito. | ✅ |
 | IX Padrões de projeto | MVC + Repository (fonte GeDoc) + Strategy (keyword/LLM). | ✅ |
 | X Issue-first (NN) | Tasks viram issues (`/speckit-taskstoissues`) antes do código. | ✅ |
-| XI Agentes | `tauri-mvc-expert` (impl.) e `pr-reviewer` (review). | ✅ |
+| XI Agentes | `tauri-mvc-expert` (impl.), `ui-ux-designer` (telas) e `pr-reviewer` (review). | ✅ |
+| XII Qualidade UI/UX | Design system por tokens (light/dark), WCAG AA, 5 estados, componentes finos. | ✅ |
 
-**Resultado**: PASS — sem violações a justificar.
+**Resultado**: PASS — sem violações a justificar. (Constituição v1.3.0.)
 
 ## Project Structure
 
@@ -93,22 +96,23 @@ src-tauri/                     # Backend Rust (Model + Controller)
 ├── tests/                     # cargo test (integracao)
 └── Cargo.toml
 
-src/                           # Frontend Vue (View + ViewModel)
-├── views/                     # telas: Busca, Categorias
-├── components/
-├── stores/                    # Pinia (estado / ViewModel)
-├── services/                  # wrappers tipados de invoke()
-└── router/
-
-tests/                         # Vitest (frontend)
+app/                           # Frontend Vue (View + ViewModel)
+├── src/
+│   ├── views/                 # telas: Busca, Categorias
+│   ├── components/
+│   ├── stores/                # Pinia (estado / ViewModel)
+│   ├── services/              # wrappers tipados de invoke() (ipc.ts)
+│   └── router/
+└── tests/                     # Vitest (frontend)
 
 # Legado (Python) — referencia, sera migrado:
 #   src/*.py, prototipo/*.html
 ```
 
 **Structure Decision**: desktop-app Tauri (Option 2 adaptada): backend Rust em
-`src-tauri/` (Model/Controller) e frontend Vue em `src/` (View/estado). A
-separação de camadas respeita o Princípio V e a MVC do Princípio IX.
+`src-tauri/` (Model/Controller) e frontend Vue em `app/` (View/estado; `src/` na
+raiz é o legado Python de referência). A separação de camadas respeita o
+Princípio V e a MVC do Princípio IX.
 
 ## Complexity Tracking
 

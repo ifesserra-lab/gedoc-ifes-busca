@@ -11,6 +11,14 @@ Fase 1. Comandos `#[tauri::command]` expostos pelo backend Rust à View (Vue via
 - **Erros**: `SiapeInvalido` (R10), `FalhaPortal`, `FalhaIA`.
 - **US**: US1, US2, US3, US5, US6. **Regras**: R1, R2, R6, R8, R9, R10.
 
+## baixar_documento
+- **Entrada**: `{ siape: string, link: string, titulo: string, data?: string }`
+- **Saída**: nome do arquivo gravado (`AAAA_NUMERO_ASSUNTO.pdf`, R3) — **nunca** o
+  caminho absoluto (R7). Grava em `<app_data_dir>/documentos/<siape>/`, fora do
+  repositório. Idempotente: reexecutar não rebaixa um arquivo já presente.
+- **Erros**: `SiapeInvalido` (R10), `FalhaPortal` (rede), `FalhaArquivo` (disco).
+- **US**: US4. **Regras**: R3, R7, R10.
+
 ## baixar_zip
 - **Entrada**: `{ siape: string }`
 - **Saída**: caminho do ZIP gerado (ou stream de bytes).
@@ -18,7 +26,11 @@ Fase 1. Comandos `#[tauri::command]` expostos pelo backend Rust à View (Vue via
 
 ## abrir_documento
 - **Entrada**: `{ siape: string, arquivo: string }`
-- **Saída**: abre/retorna o PDF individual; `arquivo` **sanitizado** (sem `/`,`\`).
+- **Saída**: abre, com o app padrão do SO, o PDF já baixado em
+  `<app_data_dir>/documentos/<siape>/<arquivo>`; `arquivo` **sanitizado** (sem
+  `/`, `\`, `..` ou vazio) antes de qualquer acesso a disco.
+- **Erros**: `SiapeInvalido` (R10), `FalhaArquivo` (nome inválido ou arquivo
+  inexistente).
 - **US**: US4. **Regras**: R3, R7.
 
 ## gerar_pdf_resumo
