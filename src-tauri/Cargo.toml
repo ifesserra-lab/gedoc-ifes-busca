@@ -1,0 +1,29 @@
+[package]
+name = "gedocs"
+version = "0.1.0"
+description = "GeDoc IFES Toolkit - consulta de documentos por SIAPE"
+edition = "2021"
+rust-version = "1.80"
+
+[lib]
+name = "gedocs_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+path = "src/lib.rs"
+
+[[bin]]
+name = "gedocs"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+regex = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

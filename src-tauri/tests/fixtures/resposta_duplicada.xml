@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<partial-response><changes><update id="j_idt65:panelResultado"><![CDATA[
+<div class="mensagemTotal">1 registro encontrado</div>
+<div class="linha">
+  <a href="https://gedoc.ifes.edu.br/documento/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa?inline" target="_blank" class="resultadoBuscaLinhaAzul">PORTARIA Nº 1 - 2024 - Assunto repetido</a>
+  <span class="resultadoBuscaLinhaVerde">01/01/2024</span>
+  <div class="highlight">SIAPE 1234567 designado</div>
+</div>
+<div class="linha">
+  <a href="https://gedoc.ifes.edu.br/documento/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa?inline" target="_blank" class="resultadoBuscaLinhaAzul">PORTARIA Nº 1 - 2024 - Assunto repetido</a>
+  <span class="resultadoBuscaLinhaVerde">01/01/2024</span>
+  <div class="highlight">SIAPE 1234567 designado</div>
+</div>
+]]></update></changes></partial-response>

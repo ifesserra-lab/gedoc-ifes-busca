@@ -19,3 +19,12 @@ cookies.txt
 page.html
 result*.xml
 *.zip
+
+# --- Rust / Tauri ---
+src-tauri/target/
+src-tauri/gen/
+
+# --- Node / Vue (frontend em app/) ---
+app/node_modules/
+app/dist/
+

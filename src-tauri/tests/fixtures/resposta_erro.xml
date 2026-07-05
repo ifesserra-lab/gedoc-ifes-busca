@@ -1,0 +1,4 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<partial-response><changes><update id="j_idt65:messages"><![CDATA[
+<div class="ui-messages ui-widget"><span class="ui-messages-error-summary">Erro</span><span class="ui-messages-error-detail">Sessão expirada, refaça a pesquisa.</span></div>
+]]></update></changes></partial-response>
