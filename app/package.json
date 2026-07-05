@@ -12,12 +12,18 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@nuxt/ui": "^4.9.0",
     "@tauri-apps/api": "^2.0.0",
+    "@vueuse/core": "^14.3.0",
     "pinia": "^2.2.0",
+    "tailwindcss": "^4.3.2",
     "vue": "^3.5.0",
     "vue-router": "^4.4.0"
   },
   "devDependencies": {
+    "@iconify-json/lucide": "^1.2.116",
+    "@tanstack/vue-table": "^8.21.3",
     "@tauri-apps/cli": "^2.11.4",
     "@vitejs/plugin-vue": "^5.1.0",
     "@vue/test-utils": "^2.4.0",

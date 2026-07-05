@@ -1,0 +1,9 @@
+/* Ponto de entrada de estilos — Nuxt UI 4 (Tailwind v4 via @import) +
+ * design system do app (fontes locais + tokens). Ordem importa: Tailwind e
+ * Nuxt UI primeiro, para que `tokens.css` possa referenciar/estender as
+ * variáveis que eles geram (--ui-*). */
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@import "./fonts.css";
+@import "./tokens.css";

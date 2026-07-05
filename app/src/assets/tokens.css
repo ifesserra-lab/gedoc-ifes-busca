@@ -1,0 +1,237 @@
+/* Design system — GeDoc IFES Toolkit (Constituição XII).
+ *
+ * Redesign aprovado (2026-07-05) — ver `specs/002-ui-nuxt-minimalista/
+ * design-tokens.md` (fonte da verdade dos hex abaixo; não alterar sem
+ * atualizar aquele arquivo). Direção: minimalista institucional, 1 acento
+ * "verde-pinho" (identidade IFES) + neutros com viés verde; dado (SIAPE,
+ * datas, contagens) em mono tabular; densidade de ferramenta desktop.
+ *
+ * Regra: nenhum componente usa cor/tamanho hardcoded — sempre estas
+ * variáveis (SC-001). Contraste ≥ 4.5:1 validado nos dois temas (texto
+ * sobre `--surface`/`--paper`); `--faint` é reservado para uso decorativo
+ * (dot, divisórias, placeholder) — não usar como única cor de texto legível.
+ *
+ * `--color-accent-*` e `--color-pine-*`: paletas Tailwind (50-950) usadas
+ * pelo Nuxt UI via `ui.colors.primary = "accent"` / `ui.colors.neutral =
+ * "pine"` (app/src/ui.config.ts) — mesma fonte de cor dos componentes
+ * UButton/UBadge/etc. `--color-accent-500` (claro) e `--color-accent-400`
+ * (escuro) reproduzem exatamente o acento aprovado (#17784E / #34B37E).
+ */
+@theme static {
+  --color-accent-50: #f1f9f5;
+  --color-accent-100: #def2e9;
+  --color-accent-200: #bce6d4;
+  --color-accent-300: #85d6b4;
+  --color-accent-400: #34b37e;
+  --color-accent-500: #17784e;
+  --color-accent-600: #125f3d;
+  --color-accent-700: #104c32;
+  --color-accent-800: #0e3927;
+  --color-accent-900: #0d2b1e;
+  --color-accent-950: #091a13;
+
+  --color-pine-50: #f9fbfa;
+  --color-pine-100: #f0f4f2;
+  --color-pine-200: #dfe7e3;
+  --color-pine-300: #c6d2cc;
+  --color-pine-400: #9baba3;
+  --color-pine-500: #758a80;
+  --color-pine-600: #5a6c63;
+  --color-pine-700: #45544c;
+  --color-pine-800: #2d3933;
+  --color-pine-900: #1d2621;
+  --color-pine-950: #0f1512;
+}
+
+:root {
+  /* Tipografia — UI (sans) + dado (mono tabular: SIAPE, datas, contagens) */
+  --font-sans: "Inter", -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Escala aprovada: 12/13/14/16/20/28/34 (nome = tamanho em px) */
+  --text-12: 0.75rem;
+  --text-13: 0.8125rem;
+  --text-14: 0.875rem;
+  --text-16: 1rem;
+  --text-20: 1.25rem;
+  --text-28: 1.75rem;
+  --text-34: 2.125rem;
+
+  /* Tracking de labels caixa-alta (eyebrow, label de grupo, pill) */
+  --tracking-label: 0.12em;
+
+  /* Espaçamento — múltiplos de 4px */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 28px;
+  --sp-8: 32px;
+
+  /* Raio — 10/16 (aprovado) + variante menor para controles compactos */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+
+  /* Sombra — discreta (profundidade sutil, não decorativa) */
+  --shadow-sm: 0 1px 2px rgba(20, 33, 27, 0.06), 0 1px 3px rgba(20, 33, 27, 0.08);
+
+  /* Cores — tema claro (padrão), hex exatos do design aprovado */
+  --paper: #f6f8f6;
+  --surface: #ffffff;
+  --surface-2: #f0f4f1;
+  --ink: #14211b;
+  --muted: #5e6b64;
+  --faint: #8a968f;
+  --border: #e4eae5;
+  --accent: #17784e;
+  --accent-press: #125f3d;
+  --accent-soft: #e7f1ec;
+  --danger: #b23b2e;
+  --warn: #9a6b12;
+  /* Sem token "success" dedicado no design aprovado — reaproveita o acento. */
+  --success: var(--accent);
+  /* Texto/ícone sobre um fundo `--accent` sólido (fora dos componentes
+   * Nuxt UI, que resolvem isso sozinhos via `--ui-text-inverted`). */
+  --accent-contrast: var(--surface);
+  --focus-ring: var(--accent);
+  --focus-ring-soft: var(--accent-soft);
+}
+
+/* Tema escuro — preferência do sistema (sem alternância manual ainda) */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --paper: #0e1512;
+    --surface: #151e1a;
+    --surface-2: #1b2621;
+    --ink: #e8eeea;
+    --muted: #93a79c;
+    --faint: #6d7e75;
+    --border: #27332c;
+    --accent: #34b37e;
+    --accent-press: #2a9169;
+    --accent-soft: #122a20;
+    --danger: #ef9a8e;
+    --warn: #e4b75c;
+    --accent-contrast: var(--paper);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* Tema escuro — alternância manual (classe aplicada pelo VueUse useColorMode
+ * em <html>, ver App.vue). Vence mesmo com o sistema em modo claro. */
+:root.dark {
+  --paper: #0e1512;
+  --surface: #151e1a;
+  --surface-2: #1b2621;
+  --ink: #e8eeea;
+  --muted: #93a79c;
+  --faint: #6d7e75;
+  --border: #27332c;
+  --accent: #34b37e;
+  --accent-press: #2a9169;
+  --accent-soft: #122a20;
+  --danger: #ef9a8e;
+  --warn: #e4b75c;
+  --accent-contrast: var(--paper);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Tema claro — força claro mesmo com o sistema em modo escuro. */
+:root.light {
+  --paper: #f6f8f6;
+  --surface: #ffffff;
+  --surface-2: #f0f4f1;
+  --ink: #14211b;
+  --muted: #5e6b64;
+  --faint: #8a968f;
+  --border: #e4eae5;
+  --accent: #17784e;
+  --accent-press: #125f3d;
+  --accent-soft: #e7f1ec;
+  --danger: #b23b2e;
+  --warn: #9a6b12;
+  --accent-contrast: var(--surface);
+  --shadow-sm: 0 1px 2px rgba(20, 33, 27, 0.06), 0 1px 3px rgba(20, 33, 27, 0.08);
+}
+
+/* Base — aplica os tokens ao documento; foco sempre visível (WCAG AA). */
+html,
+body {
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-16);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 3px var(--focus-ring-soft);
+}
+
+/* Dado tabular — SIAPE, datas, contagens (Constituição XII / design aprovado):
+ * números alinham em largura fixa, facilitando comparação em lista/tabela. */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Label caixa-alta com tracking (eyebrow, label de grupo hairline, pill). */
+.label-caps {
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  font-size: var(--text-12);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* Título com quebra equilibrada entre linhas (evita "órfã" de 1 palavra). */
+.text-balance {
+  text-wrap: balance;
+}
+
+/* Corpo/resumo — largura de leitura confortável (~60 caracteres). */
+.text-prosa {
+  max-width: 60ch;
+}
+
+/* Utilitário — alvo clicável >= 40px (Constituição XII) para botões
+ * icon-only/compactos (ex.: editar/remover, ações de download em stub). */
+.alvo-minimo {
+  min-width: 40px;
+  min-height: 40px;
+}
+
+/* Botão primário de busca — alvo maior (48px), ação principal da tela. */
+.alvo-primario {
+  min-width: 48px;
+  min-height: 48px;
+}
+
+/* Ações ainda não implementadas usam `aria-disabled` (não o atributo nativo
+ * `disabled`) para permanecerem focáveis por teclado e com o motivo
+ * alcançável via UTooltip/aria-describedby (Constituição XII: leitor de
+ * tela). Este seletor global garante a mesma aparência "desabilitada" do
+ * atributo nativo, sem duplicar CSS em cada componente. */
+[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Acessibilidade — respeita a preferência do sistema por menos movimento
+ * (Constituição XII), inclusive para animações internas do Nuxt UI
+ * (ex.: shimmer do USkeleton, transições de UModal). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
