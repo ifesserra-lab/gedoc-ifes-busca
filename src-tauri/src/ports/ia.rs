@@ -69,12 +69,6 @@ impl MistralClient {
         })
     }
 
-    #[cfg(test)]
-    pub fn com_throttle(mut self, throttle: Duration) -> Self {
-        self.throttle = throttle;
-        self
-    }
-
     /// Aguarda o necessário para respeitar o throttle desde a última
     /// chamada (R9 — evita 429 de rate limit). Nunca panica por um `Mutex`
     /// envenenado por um pânico anterior em outra thread.
