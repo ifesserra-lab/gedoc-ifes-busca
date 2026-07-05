@@ -1,5 +1,8 @@
 //! Services — orquestram Models para uma US, sem conhecer IPC/UI.
 
+pub mod cache;
+pub mod categorias;
+pub mod classificador;
 pub mod downloader;
 pub mod filtro;
 pub mod gedoc_parse;

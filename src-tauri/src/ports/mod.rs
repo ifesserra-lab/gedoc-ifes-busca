@@ -5,3 +5,4 @@
 pub mod classificador;
 pub mod gedoc_repository;
 pub mod http;
+pub mod ia;
