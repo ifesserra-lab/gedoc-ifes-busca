@@ -1,0 +1,28 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "gedocs",
+  "version": "0.1.0",
+  "identifier": "br.edu.ifes.gedocs",
+  "build": {
+    "frontendDist": "../app/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm --prefix ../app run dev",
+    "beforeBuildCommand": "npm --prefix ../app run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "GeDoc IFES Toolkit",
+        "width": 1100,
+        "height": 750
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": false
+  },
+  "plugins": {}
+}

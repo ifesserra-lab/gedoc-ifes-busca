@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissões mínimas da janela principal (menor privilégio). Rede/FS/download ainda não implementados neste MVP — nenhuma permissão de http/fs/dialog concedida.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

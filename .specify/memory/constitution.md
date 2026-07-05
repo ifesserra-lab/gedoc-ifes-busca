@@ -1,8 +1,9 @@
 <!--
 Sync Impact Report
-- Version change: 1.1.0 → 1.2.0  (MINOR: principio XI - agentes especializados)
+- Version change: 1.2.0 → 1.3.0  (MINOR: principio XII - qualidade de UI/UX)
 - Historico: 1.0.0 (inicial) → 1.1.0 (OO/TDD/patterns/stack/issue-first)
-- Ratification: 2026-07-03 (mantida) | Last Amended: 2026-07-04
+  → 1.2.0 (XI agentes) → 1.3.0 (XII UI/UX + agente ui-ux-designer)
+- Ratification: 2026-07-03 (mantida) | Last Amended: 2026-07-05
 - Principles:
   I. Fidelidade a Fonte Oficial       (mantido)
   II. Privacidade e LGPD              (mantido, NON-NEGOTIABLE)
@@ -15,6 +16,7 @@ Sync Impact Report
   IX. Padroes de Projeto              (novo)
   X. Issue-First no GitHub            (NON-NEGOTIABLE)
   XI. Agentes Especializados          (novo em 1.2.0)
+  XII. Qualidade de UI/UX             (novo em 1.3.0)
 - Added sections: nenhuma nova (Restricoes Tecnicas e Fluxo de Trabalho atualizados)
 - Removed sections: none
 - Templates alignment:
@@ -134,13 +136,33 @@ Rationale: rastreabilidade, revisao e historico do "porque" de cada mudanca.
 Usar os subagents definidos em `.claude/agents/` para suas especialidades.
 - Trabalho de Tauri 2.0 / Rust / Vue / MVC MUST ser delegado ao agente
   `tauri-mvc-expert` (`.claude/agents/tauri-mvc-expert.md`).
+- Design e implementacao de telas/UI MUST ser delegado ao agente
+  `ui-ux-designer` (`.claude/agents/ui-ux-designer.md`).
+- Revisao/validacao de PR MUST usar o agente `pr-reviewer`
+  (`.claude/agents/pr-reviewer.md`).
 - Novos dominios recorrentes MUST ganhar um agente proprio em `.claude/agents/`,
   versionado com o projeto.
 - O agente acionado MUST respeitar os demais principios (VII TDD, VI OO,
-  IX padroes, X issue-first).
+  IX padroes, X issue-first, XII UI/UX).
 
 Rationale: concentrar a especialidade em agentes reutilizaveis torna as decisoes
 tecnicas consistentes e independentes de quem executa.
+
+### XII. Qualidade de UI/UX
+Toda tela do app MUST seguir boas praticas de UI/UX (agente `ui-ux-designer`).
+- **Acessibilidade (WCAG 2.1 AA):** contraste >= 4.5:1, foco visivel, navegacao
+  por teclado, `aria`/`label` corretos, alvos clicaveis >= 40px.
+- **Cinco estados sempre:** toda tela cobre idle, loading, vazio, erro e
+  sucesso; erros sao mensagens uteis (sem stack trace), alinhadas ao `AppError`.
+- **Design system unico:** cores/tipografia/espacamento via tokens (CSS custom
+  properties), com suporte light e dark; proibido cor hardcoded no componente.
+- **Componentes pequenos e reutilizaveis** (Vue 3 `<script setup>`+TS), sem
+  regra de negocio na View (estado fica na store/IPC) — coerente com VI e VIII.
+- **Feedback imediato** a cada acao (spinner, toast, desabilitar botao) e
+  consistencia visual entre telas.
+
+Rationale: usabilidade e acessibilidade sao parte da qualidade do produto, nao
+um acabamento opcional.
 
 ## Restricoes Tecnicas
 
@@ -164,10 +186,12 @@ throttle e retry com backoff.
 
 1. **Abrir issue no GitHub** (obrigatorio, principio X) antes de qualquer tarefa.
 2. Especificar/planejar via spec-kit (`spec.md` → `plan.md` → `tasks.md`).
-3. Delegar ao agente especializado de `.claude/agents/` quando aplicavel
-   (ex.: `tauri-mvc-expert` para Tauri/Rust/Vue).
+3. Delegar ao agente especializado de `.claude/agents/` quando aplicavel:
+   `tauri-mvc-expert` (Tauri/Rust/Vue), `ui-ux-designer` (telas/UI, principio
+   XII), `pr-reviewer` (revisao do PR).
 4. **TDD:** escrever teste que falha → implementar minimo → refatorar.
-5. Commits/PRs referenciam a issue; PR so integra com testes verdes e revisao.
+5. Commits/PRs referenciam a issue; PR so integra com testes verdes e revisao
+   (`pr-reviewer`).
 6. Validar saidas de ponta a ponta antes de concluir.
 
 Pipeline de dominio (etapas encadeadas, idempotentes via cache):
@@ -180,8 +204,8 @@ Esta constituicao supersede outras praticas do projeto.
   MAJOR remocao/redefinicao incompativel; MINOR novo principio/secao; PATCH
   ajustes de texto).
 - Todo commit/PR MUST verificar conformidade com os principios — em especial
-  II (PII), VII (TDD) e X (issue-first).
+  II (PII), VII (TDD), X (issue-first) e XII (UI/UX em telas).
 - Complexidade adicional MUST ser justificada; na duvida, prevalece a
   simplicidade (YAGNI).
 
-**Version**: 1.2.0 | **Ratified**: 2026-07-03 | **Last Amended**: 2026-07-04
+**Version**: 1.3.0 | **Ratified**: 2026-07-03 | **Last Amended**: 2026-07-05
