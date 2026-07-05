@@ -11,8 +11,9 @@ pub enum AppError {
     #[error("SIAPE inválido: '{termo}'. Informe de 5 a 8 dígitos numéricos.")]
     SiapeInvalido { termo: String },
 
-    /// Falha ao comunicar com o portal GeDoc (rede, sessão expirada, layout
-    /// mudou). A implementação real (services/gedoc_repository.rs) é TODO.
+    /// Falha ao comunicar com o portal GeDoc (rede, rate limit após retry,
+    /// sessão expirada, layout mudou). Emitida por `services::gedoc_repository`
+    /// e pelo adapter `ports::http`.
     #[error("Falha ao comunicar com o portal GeDoc: {motivo}")]
     FalhaPortal { motivo: String },
 

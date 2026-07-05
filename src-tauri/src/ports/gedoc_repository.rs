@@ -1,11 +1,10 @@
 //! Repository (GoF/DDD) — abstrai a fonte de documentos do portal GeDoc.
 //!
 //! A implementação real (sessão HTTP, `ViewState`, IDs JSF descobertos em
-//! runtime — R8, paginação completa — FR-001) é **TODO** da US1
-//! (`src-tauri/src/services/gedoc_repository.rs`, ainda não escrito). Este
-//! MVP entrega apenas o contrato, para que `commands::buscar` já possa
-//! depender de uma abstração testável por dublê em vez de um cliente HTTP
-//! concreto.
+//! runtime — R8, paginação completa — FR-001) vive em
+//! `services::gedoc_repository::GedocRepositoryHttp`. Depender deste contrato
+//! (e não do cliente HTTP concreto) mantém `commands::buscar` testável por
+//! dublê, sem tocar a rede (Princípio VII).
 
 use crate::domain::documento::Documento;
 use crate::error::AppError;

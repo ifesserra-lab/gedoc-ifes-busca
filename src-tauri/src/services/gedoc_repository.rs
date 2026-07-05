@@ -14,6 +14,7 @@
 //! (`ports::http`), que é a fronteira de I/O.
 
 use std::collections::HashSet;
+use std::sync::LazyLock;
 
 use regex::Regex;
 
@@ -27,6 +28,16 @@ use crate::domain::documento::Documento;
 const BASE: &str = "https://gedoc.ifes.edu.br";
 const PAGE: &str = "/faces/pesquisarDocumentos/pesquisarHistorico.xhtml";
 const ROWS_POR_PAGINA: u32 = 10;
+
+// Regexes de descoberta compiladas uma vez (padrão do crate — ver
+// `gedoc_parse.rs`). A regex de `action` não entra aqui: seu padrão depende do
+// `form` descoberto em runtime, então é montada por chamada em `descobrir_ids`.
+static RE_VIEWSTATE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"name="javax\.faces\.ViewState"[^>]*value="([^"]+)""#).unwrap());
+static RE_BTN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"PrimeFaces\.ab\(\{source:'([^']+)'[^)]*panelResultado").unwrap());
+static RE_VIEWSTATE_PARCIAL: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"ViewState[^>]*><!\[CDATA\[([^\]]+)\]\]>").unwrap());
 
 /// IDs JSF descobertos dinamicamente na página inicial (R8): eles mudam a
 /// cada deploy do portal, então nunca são fixados em código.
@@ -116,15 +127,12 @@ fn descobrir_ids(page: &str) -> Result<Ids, AppError> {
             .to_string(),
     };
 
-    let re_viewstate = Regex::new(r#"name="javax\.faces\.ViewState"[^>]*value="([^"]+)""#).unwrap();
-    let re_btn = Regex::new(r"PrimeFaces\.ab\(\{source:'([^']+)'[^)]*panelResultado").unwrap();
-
-    let viewstate = re_viewstate
+    let viewstate = RE_VIEWSTATE
         .captures(page)
         .and_then(|c| c.get(1))
         .map(|m| m.as_str().to_string())
         .ok_or_else(erro_layout)?;
-    let btn = re_btn
+    let btn = RE_BTN
         .captures(page)
         .and_then(|c| c.get(1))
         .map(|m| m.as_str().to_string())
@@ -160,8 +168,8 @@ fn descobrir_ids(page: &str) -> Result<Ids, AppError> {
 /// Sem casar, o `ViewState` corrente é mantido (o portal nem sempre o
 /// reenvia).
 fn extrair_viewstate_parcial(xml: &str) -> Option<String> {
-    let re = Regex::new(r"ViewState[^>]*><!\[CDATA\[([^\]]+)\]\]>").unwrap();
-    re.captures(xml)
+    RE_VIEWSTATE_PARCIAL
+        .captures(xml)
         .and_then(|c| c.get(1))
         .map(|m| m.as_str().to_string())
 }

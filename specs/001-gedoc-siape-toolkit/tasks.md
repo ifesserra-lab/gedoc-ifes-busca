@@ -43,12 +43,12 @@ forma independente. Backend Rust em `src-tauri/`, frontend Vue em `src/`.
 **Meta**: dado um SIAPE, coletar todos os documentos (paginação completa).
 **Teste independente**: total coletado == total do portal.
 
-- [ ] T012 [P] [US1] Teste: descoberta dinâmica de IDs/ViewState em `src-tauri/tests/gedoc_ids.rs` (R8)
-- [ ] T013 [P] [US1] Teste: paginação coleta todos os registros (portal dublado) em `src-tauri/tests/gedoc_paginacao.rs`
-- [ ] T014 [US1] Implementar `GedocRepository` (sessão, ViewState, IDs dinâmicos, busca AJAX) em `src-tauri/src/services/gedoc_repository.rs` (R8)
-- [ ] T015 [US1] Implementar paginação + dedup por link em `gedoc_repository.rs`
-- [ ] T016 [US1] Persistir `ResultadoBusca` em `data/resultado_<siape>.json` em `src-tauri/src/services/resultado_store.rs`
-- [ ] T017 [US1] Comando `buscar_por_siape` (parcial: só coleta) em `src-tauri/src/commands/buscar.rs`
+- [x] T012 [P] [US1] Teste: descoberta dinâmica de IDs/ViewState (R8) — como testes unitários em `gedoc_repository.rs` (`descobre_ids_do_fixture_home`) + fixture `tests/fixtures/home_pesquisa.html`
+- [x] T013 [P] [US1] Teste: paginação coleta todos os registros (portal dublado `FakeHttp`) — `buscar_agrega_documentos_de_multiplas_paginas` em `gedoc_repository.rs`
+- [x] T014 [US1] Implementar `GedocRepository` (sessão, ViewState, IDs dinâmicos, busca AJAX) em `src-tauri/src/services/gedoc_repository.rs` (R8) + adapter `src-tauri/src/ports/http.rs`
+- [x] T015 [US1] Implementar paginação + dedup por link em `gedoc_repository.rs`
+- [~] T016 [US1] ~~Persistir `ResultadoBusca` em `data/resultado_<siape>.json`~~ — **fora de escopo na arquitetura Tauri/IPC**: `buscar_por_siape` devolve `ResultadoView` direto à View; não há necessidade de persistir em disco no MVP (evita gravar PII — Princípio II). Reabrir se surgir requisito de cache/offline.
+- [x] T017 [US1] Comando `buscar_por_siape` (coleta + filtro + agrupamento) em `src-tauri/src/commands/buscar.rs`
 
 ## Phase 4: US2 — Filtrar por SIAPE (P1)
 
