@@ -6,10 +6,10 @@ description: "Task list — GeDoc IFES Toolkit (Tauri 2.0 + Vue), TDD por user s
 
 **Input**: `specs/001-gedoc-siape-toolkit/` (plan.md, spec.md, data-model.md, contracts/, research.md)
 
-**Tests**: INCLUÍDOS — a constituição v1.2.0 (Princípio VII) exige TDD.
+**Tests**: INCLUÍDOS — a constituição v1.3.0 (Princípio VII) exige TDD.
 
 **Organização**: por user story (US1–US8), cada uma testável e entregável de
-forma independente. Backend Rust em `src-tauri/`, frontend Vue em `src/`.
+forma independente. Backend Rust em `src-tauri/`, frontend Vue em `app/`.
 
 ## Format: `[ID] [P?] [Story] Description`
 - **[P]**: paralelizável (arquivos distintos, sem dependência pendente).
@@ -76,11 +76,11 @@ forma independente. Backend Rust em `src-tauri/`, frontend Vue em `src/`.
 **Meta**: baixar PDFs `AAAA_NUMERO_ASSUNTO`, sem sobrescrever.
 **Teste independente**: PDFs `%PDF` válidos; colisão recebe sufixo.
 
-- [ ] T027 [P] [US4] Teste: nome determinístico + colisão em `src-tauri/tests/nome_arquivo.rs` (R3)
-- [ ] T028 [US4] Derivar nome `AAAA_NUMERO_ASSUNTO` em `src-tauri/src/domain/nome_arquivo.rs` (R3)
-- [ ] T029 [US4] Download dos PDFs (extração de texto p/ etapas seguintes) em `src-tauri/src/services/downloader.rs`
-- [ ] T030 [US4] Comando `abrir_documento` (nome sanitizado) em `src-tauri/src/commands/documento.rs` (R7)
-- [ ] T031 [P] [US4] Botão "PDF" por documento em `app/src/components/busca/DocItem.vue` (baixar+abrir via IPC)
+- [x] T027 [P] [US4] Teste: nome determinístico + colisão em `src-tauri/tests/nome_arquivo.rs` (R3)
+- [x] T028 [US4] Derivar nome `AAAA_NUMERO_ASSUNTO` em `src-tauri/src/domain/nome_arquivo.rs` (R3)
+- [x] T029 [US4] Download dos PDFs (extração de texto p/ etapas seguintes) em `src-tauri/src/services/downloader.rs`
+- [x] T030 [US4] Comando `abrir_documento` (nome sanitizado) em `src-tauri/src/commands/documento.rs` (R7)
+- [x] T031 [P] [US4] Botão "PDF" por documento em `app/src/components/busca/DocItem.vue` (baixar+abrir via IPC)
 
 ## Phase 7: US5 — Classificar por categoria (P2)
 

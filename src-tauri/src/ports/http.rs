@@ -26,6 +26,10 @@ pub trait HttpPort {
     /// POST `application/x-www-form-urlencoded` com os headers de requisição
     /// parcial (AJAX) do JSF/PrimeFaces.
     fn post_form(&self, url: &str, campos: &[(String, String)]) -> Result<String, AppError>;
+
+    /// GET binário; usado por `services::downloader` para baixar o PDF de um
+    /// `Documento` (US4). Mesma política de retry/backoff do `get` textual.
+    fn get_bytes(&self, url: &str) -> Result<Vec<u8>, AppError>;
 }
 
 /// Adapter concreto sobre `reqwest::blocking`. Fronteira de I/O — a rede real
@@ -58,12 +62,15 @@ impl ReqwestHttp {
     /// erros transitórios do servidor (5xx) e de conexão/timeout — exigência
     /// das Restrições Técnicas da constituição, espelhando o `Retry` do
     /// cliente Python. `montar` reconstrói a requisição a cada tentativa
-    /// (um `RequestBuilder` é consumido no `send`).
-    fn com_retry(
+    /// (um `RequestBuilder` é consumido no `send`). `ler` converte a
+    /// resposta final (sucesso ou erro definitivo) no tipo desejado — texto
+    /// para `get`/`post_form`, bytes para `get_bytes`.
+    fn com_retry<T>(
         &self,
         contexto: &str,
         montar: impl Fn() -> reqwest::blocking::RequestBuilder,
-    ) -> Result<String, AppError> {
+        ler: impl Fn(Result<reqwest::blocking::Response, reqwest::Error>, &str) -> Result<T, AppError>,
+    ) -> Result<T, AppError> {
         let mut tentativa = 1;
         loop {
             let pode_retentar = tentativa < MAX_TENTATIVAS;
@@ -74,7 +81,7 @@ impl ReqwestHttp {
                 Err(e) if erro_transitorio(&e) && pode_retentar => {
                     std::thread::sleep(backoff(tentativa));
                 }
-                resultado => return ler_corpo(resultado, contexto),
+                resultado => return ler(resultado, contexto),
             }
             tentativa += 1;
         }
@@ -83,13 +90,24 @@ impl ReqwestHttp {
 
 impl HttpPort for ReqwestHttp {
     fn get(&self, url: &str) -> Result<String, AppError> {
-        self.com_retry(&format!("GET {url}"), || self.client.get(url))
+        self.com_retry(&format!("GET {url}"), || self.client.get(url), ler_corpo)
     }
 
     fn post_form(&self, url: &str, campos: &[(String, String)]) -> Result<String, AppError> {
-        self.com_retry(&format!("POST {url}"), || {
-            montar_post(&self.client, url, campos)
-        })
+        self.com_retry(
+            &format!("POST {url}"),
+            || montar_post(&self.client, url, campos),
+            ler_corpo,
+        )
+    }
+
+    fn get_bytes(&self, url: &str) -> Result<Vec<u8>, AppError> {
+        let url = https_normalizada(url);
+        self.com_retry(
+            &format!("GET {url}"),
+            || self.client.get(&url),
+            ler_corpo_bytes,
+        )
     }
 }
 
@@ -147,6 +165,34 @@ fn ler_corpo(
         .map_err(erro)
 }
 
+/// Mesma conversão de [`ler_corpo`], mas para bytes brutos (download de
+/// PDF, US4) em vez de texto.
+fn ler_corpo_bytes(
+    resp: Result<reqwest::blocking::Response, reqwest::Error>,
+    contexto: &str,
+) -> Result<Vec<u8>, AppError> {
+    let erro = |e: reqwest::Error| AppError::FalhaPortal {
+        motivo: format!("{contexto}: {e}"),
+    };
+    resp.map_err(erro)?
+        .error_for_status()
+        .map_err(erro)?
+        .bytes()
+        .map(|b| b.to_vec())
+        .map_err(erro)
+}
+
+const HOST_HTTP_SEM_TLS: &str = "http://gedoc.ifes.edu.br:80";
+const HOST_HTTPS: &str = "https://gedoc.ifes.edu.br";
+
+/// Normaliza o link do documento para HTTPS sem a porta 80 — o portal às
+/// vezes devolve `link` como `http://gedoc.ifes.edu.br:80/...`, que precisa
+/// virar `https://gedoc.ifes.edu.br/...` antes do download (mesma correção
+/// do cliente Python de referência, `_https`).
+fn https_normalizada(url: &str) -> String {
+    url.replace(HOST_HTTP_SEM_TLS, HOST_HTTPS)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -166,6 +212,20 @@ mod tests {
         assert_eq!(backoff(1), Duration::from_millis(500));
         assert_eq!(backoff(2), Duration::from_millis(1000));
         assert_eq!(backoff(3), Duration::from_millis(2000));
+    }
+
+    #[test]
+    fn normaliza_http_porta_80_para_https() {
+        assert_eq!(
+            https_normalizada("http://gedoc.ifes.edu.br:80/documento/abc?inline"),
+            "https://gedoc.ifes.edu.br/documento/abc?inline"
+        );
+    }
+
+    #[test]
+    fn nao_altera_url_ja_https() {
+        let url = "https://gedoc.ifes.edu.br/documento/abc?inline";
+        assert_eq!(https_normalizada(url), url);
     }
 
     #[test]

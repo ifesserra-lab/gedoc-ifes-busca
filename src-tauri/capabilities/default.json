@@ -1,7 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissões mínimas da janela principal (menor privilégio). Rede/FS/download ainda não implementados neste MVP — nenhuma permissão de http/fs/dialog concedida.",
+  "description": "Permissões mínimas da janela principal (menor privilégio). US4: os comandos `baixar_documento`/`abrir_documento` (app, sempre auto-permitidos) usam a API Rust do plugin `opener` internamente, já com o caminho sanitizado (R7) e confinado a <app-data>/documentos/<siape>/; o comando nativo do plugin (`plugin:opener|open-path`) não é exposto ao frontend, mas a permissão abaixo o restringe à mesma pasta caso isso mude no futuro. Nenhuma permissão de fs/http/dialog é concedida.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [{ "path": "$APPDATA/documentos/**" }]
+    }
+  ]
 }

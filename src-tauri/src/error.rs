@@ -33,4 +33,10 @@ pub enum AppError {
     /// em vez de falha silenciosa ou pânico.
     #[error("Recurso ainda não implementado: {0}")]
     NaoImplementado(String),
+
+    /// R7 — falha de I/O em disco (criar diretório, gravar/ler um PDF
+    /// baixado) ou nome de arquivo inválido (path traversal: `/`, `\`, `..`
+    /// ou vazio). US4.
+    #[error("Falha ao acessar arquivo: {motivo}")]
+    FalhaArquivo { motivo: String },
 }
