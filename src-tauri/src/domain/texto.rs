@@ -5,7 +5,8 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
-static RE_NUM_TITULO: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)N[ºo°]\s*(\d+)").unwrap());
+static RE_NUM_TITULO: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)N[ºo°]\s*(\d+)").unwrap());
 static RE_ANO: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(?:19|20)\d{2}\b").unwrap());
 
 /// Número do ato, extraído após "Nº" no título (ex.: "PORTARIA Nº 123" -> "123").
@@ -41,8 +42,14 @@ mod tests {
 
     #[test]
     fn extrai_ano_do_titulo_ou_da_data() {
-        assert_eq!(extrair_ano("PORTARIA Nº 1 - 2024 - Assunto", None), Some(2024));
-        assert_eq!(extrair_ano("sem ano no titulo", Some("05/03/2023")), Some(2023));
+        assert_eq!(
+            extrair_ano("PORTARIA Nº 1 - 2024 - Assunto", None),
+            Some(2024)
+        );
+        assert_eq!(
+            extrair_ano("sem ano no titulo", Some("05/03/2023")),
+            Some(2023)
+        );
         assert_eq!(extrair_ano("sem ano nem data", None), None);
     }
 }

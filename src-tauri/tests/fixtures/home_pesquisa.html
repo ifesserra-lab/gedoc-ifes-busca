@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Pesquisar documentos</title></head>
+<body>
+<form id="j_idt65" name="j_idt65" method="post"
+      action="/faces/pesquisarDocumentos/pesquisarHistorico.xhtml"
+      enctype="application/x-www-form-urlencoded">
+  <input type="text" name="j_idt65:nome" id="j_idt65:nome" />
+  <input type="hidden" id="j_idt65_ViewState" name="javax.faces.ViewState"
+         value="-1234567890123456789:-9876543210987654321" autocomplete="off" />
+</form>
+<script type="text/javascript">
+//<![CDATA[
+$(function(){
+  PrimeFaces.bind({type:'click',fn:function(e){
+    PrimeFaces.ab({source:'j_idt65:j_idt115',process:'j_idt65',update:'j_idt65:panelResultado j_idt65:messages'});
+  },target:document.getElementById('j_idt65:j_idt115')});
+});
+//]]>
+</script>
+</body>
+</html>
