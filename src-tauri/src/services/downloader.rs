@@ -7,8 +7,9 @@
 //! rede ou o disco do repositório (Princípio VII): a rede é um `HttpPort`
 //! dublê e o disco é um `tempfile::TempDir`.
 
+use std::ffi::OsStr;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use crate::domain::documento::Documento;
 use crate::domain::nome_arquivo::nome_arquivo;
@@ -16,12 +17,21 @@ use crate::domain::siape;
 use crate::error::AppError;
 use crate::ports::http::HttpPort;
 
+/// Host único de onde é permitido baixar documentos (Princípio I — fidelidade
+/// à fonte oficial). Barra SSRF: o `link` chega pela fronteira IPC e não pode
+/// apontar para um host arbitrário.
+const HOST_CONFIAVEL: &str = "gedoc.ifes.edu.br";
+
+/// Assinatura de arquivo PDF — todo PDF válido começa com `%PDF`.
+const ASSINATURA_PDF: &[u8] = b"%PDF";
+
 /// Baixa `doc.link` (via `http`) para dentro de `dir_destino`, criando o
 /// diretório se necessário, e grava o PDF com o nome determinístico de R3.
-/// **Idempotente**: se o arquivo já existe em `dir_destino`, não baixa de
-/// novo — apenas retorna o nome. Retorna só o **nome** do arquivo (nunca o
-/// caminho absoluto — R7): quem cruza o IPC recompõe o caminho a partir do
-/// SIAPE, no backend, nunca a partir de um caminho vindo do cliente.
+/// **Idempotente**: se o arquivo final já existe em `dir_destino`, não baixa
+/// de novo — apenas retorna o nome. A escrita é **atômica** (grava em
+/// `<nome>.part` e renomeia) para que um crash no meio nunca deixe um arquivo
+/// final parcial que passaria a ser tratado como "já baixado". Retorna só o
+/// **nome** do arquivo (nunca o caminho absoluto — R7).
 pub fn baixar_documento<H: HttpPort>(
     http: &H,
     doc: &Documento,
@@ -34,37 +44,97 @@ pub fn baixar_documento<H: HttpPort>(
         return Ok(nome);
     }
 
-    fs::create_dir_all(dir_destino).map_err(|e| AppError::FalhaArquivo {
-        motivo: format!("Falha ao criar diretório '{}': {e}", dir_destino.display()),
-    })?;
+    if !link_do_portal(&doc.link) {
+        return Err(AppError::FalhaPortal {
+            motivo: "Link fora do portal GeDoc — download recusado.".to_string(),
+        });
+    }
 
     let bytes = http.get_bytes(&doc.link)?;
+    validar_conteudo_pdf(&bytes)?;
 
-    fs::write(&caminho, bytes).map_err(|e| AppError::FalhaArquivo {
+    fs::create_dir_all(dir_destino).map_err(|e| AppError::FalhaArquivo {
+        motivo: format!("Falha ao criar o diretório de dados: {e}"),
+    })?;
+
+    // Escrita atômica: grava no `.part` e só renomeia após o corpo completo.
+    // `rename` é atômico no mesmo filesystem — o nome final só passa a existir
+    // quando o download terminou por inteiro.
+    let temporario = dir_destino.join(format!("{nome}.part"));
+    fs::write(&temporario, &bytes).map_err(|e| AppError::FalhaArquivo {
         motivo: format!("Falha ao gravar '{nome}': {e}"),
+    })?;
+    fs::rename(&temporario, &caminho).map_err(|e| {
+        let _ = fs::remove_file(&temporario); // limpa o `.part` órfão
+        AppError::FalhaArquivo {
+            motivo: format!("Falha ao finalizar '{nome}': {e}"),
+        }
     })?;
 
     Ok(nome)
 }
 
+/// Verdadeiro se `link` aponta para o host oficial do portal (http/https,
+/// porta opcional). Comparação de host só; caminho/query são irrelevantes.
+fn link_do_portal(link: &str) -> bool {
+    let sem_esquema = link
+        .strip_prefix("https://")
+        .or_else(|| link.strip_prefix("http://"));
+    match sem_esquema {
+        Some(resto) => {
+            let host = resto.split(['/', ':', '?', '#']).next().unwrap_or("");
+            host.eq_ignore_ascii_case(HOST_CONFIAVEL)
+        }
+        None => false,
+    }
+}
+
+/// Rejeita corpo vazio ou que não seja um PDF (ex.: uma página de sessão
+/// expirada devolvida com status 200), evitando persistir lixo que a
+/// idempotência passaria a tratar como "já baixado".
+fn validar_conteudo_pdf(bytes: &[u8]) -> Result<(), AppError> {
+    if bytes.starts_with(ASSINATURA_PDF) {
+        Ok(())
+    } else {
+        Err(AppError::FalhaArquivo {
+            motivo: "Conteúdo baixado não é um PDF válido (resposta vazia ou inesperada)."
+                .to_string(),
+        })
+    }
+}
+
 /// R7 — resolve `base/siape/arquivo`, validando que `siape` é uma matrícula
-/// válida (R10) e que `arquivo` não escapa do diretório do SIAPE: rejeita
-/// vazio, `/`, `\` e `..` (path traversal). Função pura, não toca o disco —
-/// só valida e monta o caminho; a checagem de existência é de quem chama.
+/// válida (R10) e que `arquivo` é um único componente de caminho normal (sem
+/// separadores, sem `..`/`.`, sem raiz nem prefixo de unidade). Função pura,
+/// não toca o disco.
 pub fn caminho_seguro(base: &Path, siape: &str, arquivo: &str) -> Result<PathBuf, AppError> {
     siape::validar(siape)?;
 
-    let invalido = arquivo.is_empty()
-        || arquivo.contains('/')
-        || arquivo.contains('\\')
-        || arquivo.contains("..");
-    if invalido {
+    if !nome_arquivo_seguro(arquivo) {
         return Err(AppError::FalhaArquivo {
             motivo: format!("Nome de arquivo inválido: '{arquivo}'"),
         });
     }
 
     Ok(base.join(siape).join(arquivo))
+}
+
+/// Verdadeiro sse `arquivo` é seguro como último componente de caminho:
+/// não-vazio, sem `/`, `\` ou `:` (fecha o prefixo de unidade do Windows,
+/// ex.: `C:evil.pdf`, que `Path::push` trataria como caminho absoluto e
+/// escaparia do diretório de destino), e exatamente **um** componente
+/// `Normal` (fecha `..`, `.`, raiz e prefixo). Checar componentes de `Path`
+/// (em vez de só substrings) é o que torna a validação robusta em todas as
+/// plataformas.
+fn nome_arquivo_seguro(arquivo: &str) -> bool {
+    if arquivo.is_empty() || arquivo.contains(['/', '\\', ':']) {
+        return false;
+    }
+    let mut comps = Path::new(arquivo).components();
+    matches!(
+        (comps.next(), comps.next()),
+        (Some(Component::Normal(c)), None) if c == OsStr::new(arquivo)
+    )
 }
 
 #[cfg(test)]
@@ -161,6 +231,67 @@ mod tests {
         assert!(dir_destino.join(nome).is_file());
     }
 
+    #[test]
+    fn nao_grava_arquivo_final_quando_corpo_nao_e_pdf() {
+        let dir = tempdir().expect("cria tempdir");
+        let http = FakeHttp::novo(b""); // corpo vazio (ex.: sessão expirada em 200)
+        let doc = doc_fake();
+
+        let erro = baixar_documento(&http, &doc, dir.path()).unwrap_err();
+
+        assert!(matches!(erro, AppError::FalhaArquivo { .. }));
+        assert!(
+            !dir.path().join(nome_arquivo(&doc)).exists(),
+            "corpo inválido não pode deixar arquivo final"
+        );
+    }
+
+    #[test]
+    fn part_orfao_nao_bloqueia_nem_e_confundido_com_o_final() {
+        let dir = tempdir().expect("cria tempdir");
+        let doc = doc_fake();
+        let nome = nome_arquivo(&doc);
+        // simula um `.part` deixado por um crash anterior
+        fs::write(dir.path().join(format!("{nome}.part")), b"parcial").expect("cria .part");
+
+        let http = FakeHttp::novo(PDF_FALSO);
+        let baixado =
+            baixar_documento(&http, &doc, dir.path()).expect("deve baixar mesmo com .part");
+
+        assert_eq!(baixado, nome);
+        assert_eq!(*http.chamadas.borrow(), 1, ".part não conta como baixado");
+        assert_eq!(fs::read(dir.path().join(&nome)).unwrap(), PDF_FALSO);
+    }
+
+    #[test]
+    fn recusa_link_fora_do_portal_sem_tocar_a_rede() {
+        let dir = tempdir().expect("cria tempdir");
+        let http = FakeHttp::novo(PDF_FALSO);
+        let mut doc = doc_fake();
+        doc.link = "https://evil.example.com/documento/x?inline".to_string();
+
+        let erro = baixar_documento(&http, &doc, dir.path()).unwrap_err();
+
+        assert!(matches!(erro, AppError::FalhaPortal { .. }));
+        assert_eq!(
+            *http.chamadas.borrow(),
+            0,
+            "não deve baixar de host arbitrário"
+        );
+    }
+
+    #[test]
+    fn link_do_portal_aceita_host_oficial_e_recusa_o_resto() {
+        assert!(link_do_portal(
+            "https://gedoc.ifes.edu.br/documento/aaaa?inline"
+        ));
+        assert!(link_do_portal("http://gedoc.ifes.edu.br:80/documento/aaaa"));
+        assert!(!link_do_portal("https://evil.com/documento/aaaa"));
+        assert!(!link_do_portal("https://gedoc.ifes.edu.br.evil.com/x"));
+        assert!(!link_do_portal("ftp://gedoc.ifes.edu.br/x"));
+        assert!(!link_do_portal("/documento/aaaa"));
+    }
+
     // --- caminho_seguro (R7) ------------------------------------------------ //
 
     #[test]
@@ -171,9 +302,33 @@ mod tests {
     }
 
     #[test]
-    fn rejeita_traversal_e_separadores_de_caminho() {
+    fn aceita_nome_com_pontos_internos_sem_ser_traversal() {
+        // `nome_arquivo` pode produzir nomes com ".." no assunto; isso não é
+        // path traversal e não pode ser rejeitado (regressão).
         let base = Path::new("/dados/documentos");
-        for arquivo in ["..", "../../etc/passwd", "/etc/x", "a/b", "a\\b", ""] {
+        let caminho = caminho_seguro(base, "1998547", "2024_1_Assunto .. final.pdf")
+            .expect("pontos internos são válidos");
+        assert_eq!(
+            caminho,
+            base.join("1998547").join("2024_1_Assunto .. final.pdf")
+        );
+    }
+
+    #[test]
+    fn rejeita_traversal_separadores_e_prefixo_de_unidade() {
+        let base = Path::new("/dados/documentos");
+        for arquivo in [
+            "..",
+            ".",
+            "../../etc/passwd",
+            "/etc/x",
+            "a/b",
+            "a\\b",
+            "foo/../bar",
+            "C:evil.pdf", // prefixo de unidade Windows — Path::push escaparia
+            "C:",
+            "",
+        ] {
             let erro = caminho_seguro(base, "1998547", arquivo)
                 .expect_err(&format!("deveria rejeitar '{arquivo}'"));
             assert!(matches!(erro, AppError::FalhaArquivo { .. }));
