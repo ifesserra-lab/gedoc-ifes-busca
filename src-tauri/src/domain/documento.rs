@@ -111,6 +111,9 @@ mod tests {
     fn outros_siapes_remove_duplicatas_preservando_ordem() {
         let mut d = Documento::novo("link3", "DESPACHO Nº 1 - 2024 - Assunto");
         d.siapes = vec!["111".into(), "222".into(), "111".into()];
-        assert_eq!(d.outros_siapes(), vec!["111".to_string(), "222".to_string()]);
+        assert_eq!(
+            d.outros_siapes(),
+            vec!["111".to_string(), "222".to_string()]
+        );
     }
 }
