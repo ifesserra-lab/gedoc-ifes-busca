@@ -19,20 +19,20 @@ forma independente. Backend Rust em `src-tauri/`, frontend Vue em `src/`.
 
 ## Phase 1: Setup (infra compartilhada)
 
-- [ ] T001 Inicializar app Tauri 2.0 + Vue 3 (TS) na raiz (`src-tauri/`, `src/`, `package.json`)
-- [ ] T002 [P] Configurar Pinia e Vue Router em `src/main.ts`
-- [ ] T003 [P] Configurar lint/format (rustfmt+clippy; eslint+prettier)
-- [ ] T004 [P] Configurar testes: `cargo nextest` e Vitest (`vitest.config.ts`)
-- [ ] T005 Definir `capabilities/` mínimas do Tauri (http, fs, dialog) em `src-tauri/capabilities/`
+- [x] T001 Inicializar app Tauri 2.0 + Vue 3 (TS): backend `src-tauri/`, frontend `app/` (`app/package.json`)
+- [x] T002 [P] Configurar Pinia e Vue Router em `app/src/main.ts` + `app/src/router/index.ts`
+- [~] T003 [P] Lint/format: rustfmt+clippy (`-D warnings`) ✅; eslint/prettier no front ainda pendente
+- [x] T004 [P] Testes: `cargo test` (Rust) e Vitest (`app/`) configurados (nextest opcional, não adotado)
+- [~] T005 Definir `capabilities/` do Tauri em `src-tauri/capabilities/` — opener adicionado em #4; http/fs não usados (reqwest direto)
 
 ## Phase 2: Foundational (bloqueia todas as US)
 
-- [ ] T006 Modelar entidades de domínio em `src-tauri/src/domain/` (Servidor, Documento, Categoria, ResultadoBusca) conforme data-model.md
-- [ ] T007 [P] Definir `AppError` (thiserror, serializável) em `src-tauri/src/error.rs`
-- [ ] T008 [P] Definir traits/ports em `src-tauri/src/ports/` (GedocRepository, Classificador, Resumidor, Cache)
-- [ ] T009 Implementar `Cache` em arquivos (por link) em `src-tauri/src/services/cache.rs` (R6)
-- [ ] T010 Registrar `tauri::Builder`, plugins e `invoke_handler` em `src-tauri/src/lib.rs`
-- [ ] T011 [P] Camada de serviços IPC no front: `src/services/ipc.ts` (wrappers tipados de `invoke`)
+- [x] T006 Modelar entidades de domínio em `src-tauri/src/domain/` (Servidor/siape, Documento, Categoria, texto, nome_arquivo)
+- [x] T007 [P] Definir `AppError` (thiserror, serializável) em `src-tauri/src/error.rs`
+- [~] T008 [P] Traits/ports em `src-tauri/src/ports/` — GedocRepository, Classificador, HttpPort ✅; Resumidor/Cache pendentes (US5/US6)
+- [ ] T009 Implementar `Cache` em arquivos (por link) em `src-tauri/src/services/cache.rs` (R6) — **pendente; bloqueia FR-010/SC-003/SC-006**, fazer em US5 antes de US6
+- [x] T010 Registrar `tauri::Builder`, plugins e `invoke_handler` em `src-tauri/src/lib.rs`
+- [x] T011 [P] Camada de serviços IPC no front: `app/src/services/ipc.ts` (wrappers tipados de `invoke`)
 
 **⚠️ Concluir Fase 2 antes de qualquer US.**
 
@@ -80,7 +80,7 @@ forma independente. Backend Rust em `src-tauri/`, frontend Vue em `src/`.
 - [ ] T028 [US4] Derivar nome `AAAA_NUMERO_ASSUNTO` em `src-tauri/src/domain/nome_arquivo.rs` (R3)
 - [ ] T029 [US4] Download dos PDFs (extração de texto p/ etapas seguintes) em `src-tauri/src/services/downloader.rs`
 - [ ] T030 [US4] Comando `abrir_documento` (nome sanitizado) em `src-tauri/src/commands/documento.rs` (R7)
-- [ ] T031 [P] [US4] Botão "PDF" por documento na lista em `views/BuscaView.vue`
+- [ ] T031 [P] [US4] Botão "PDF" por documento em `app/src/components/busca/DocItem.vue` (baixar+abrir via IPC)
 
 ## Phase 7: US5 — Classificar por categoria (P2)
 
@@ -112,7 +112,7 @@ forma independente. Backend Rust em `src-tauri/`, frontend Vue em `src/`.
 - [ ] T042 [P] [US7] Teste: markdown agrupado por categoria em `src-tauri/tests/relatorio.rs`
 - [ ] T043 [US7] Gerar relatório (markdown→PDF via webview) em `src-tauri/src/services/relatorio.rs`
 - [ ] T044 [US7] Comando `gerar_pdf_resumo` e `baixar_zip` em `src-tauri/src/commands/exportar.rs` (R3,R7)
-- [ ] T045 [P] [US7] Botões "PDF do resumo" e "Baixar todos" em `views/BuscaView.vue`
+- [ ] T045 [P] [US7] Botões "PDF do resumo" e "Baixar todos" em `app/src/views/BuscaView.vue`
 
 ## Phase 10: US8 — CRUD de categorias (P3)
 
@@ -120,10 +120,10 @@ forma independente. Backend Rust em `src-tauri/`, frontend Vue em `src/`.
 **Teste independente**: criar persiste; nome duplicado rejeitado; remover funciona.
 
 - [ ] T046 [P] [US8] Teste: salvar rejeita nome vazio/duplicado em `src-tauri/tests/categorias.rs` (R5)
-- [ ] T047 [P] [US8] Teste de componente: modal CRUD em `tests/CategoriasView.spec.ts`
+- [ ] T047 [P] [US8] Teste de componente: modal CRUD em `app/tests/CategoriasView.spec.ts`
 - [ ] T048 [US8] Comandos `listar_categorias`/`salvar_categorias` em `src-tauri/src/commands/categorias.rs` (R5)
-- [ ] T049 [US8] `views/CategoriasView.vue` (tabela + modal add/editar/remover) + rota `/categorias`
-- [ ] T050 [US8] `stores/categorias.ts` (Pinia) chamando IPC
+- [~] T049 [US8] `app/src/views/CategoriasView.vue` (tabela + modal add/editar/remover) + rota `/categorias` — UI já entregue (#13); falta ligar ao IPC de persistência
+- [~] T050 [US8] `app/src/stores/categorias.ts` (Pinia) chamando IPC — store existe (#13); trocar stub por `listar/salvar_categorias`
 
 ## Phase 11: Polish & cross-cutting
 
