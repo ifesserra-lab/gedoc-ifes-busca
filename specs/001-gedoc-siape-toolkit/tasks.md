@@ -55,21 +55,21 @@ forma independente. Backend Rust em `src-tauri/`, frontend Vue em `src/`.
 **Meta**: manter só documentos que citam o SIAPE no texto.
 **Teste independente**: itens listados contêm o SIAPE; demais em descartados.
 
-- [ ] T018 [P] [US2] Teste: validação `^[0-9]{5,8}$` em `src-tauri/tests/siape_valido.rs` (R10)
-- [ ] T019 [P] [US2] Teste: filtro marca contem_siape pelo trecho em `src-tauri/tests/filtro_siape.rs` (R2)
-- [ ] T020 [US2] Validador de SIAPE em `src-tauri/src/domain/siape.rs` (R10)
-- [ ] T021 [US2] Extração de `siapes[]` e filtro `contem_siape` em `gedoc_repository.rs` (R2)
-- [ ] T022 [US2] Expor válidos × descartados no resultado (US2 completa a busca)
+- [x] T018 [P] [US2] Teste: validação `^[0-9]{5,8}$` em `src-tauri/tests/siape_valido.rs` (R10)
+- [x] T019 [P] [US2] Teste: filtro marca contem_siape pelo trecho em `src-tauri/tests/filtro_siape.rs` (R2)
+- [x] T020 [US2] Validador de SIAPE em `src-tauri/src/domain/siape.rs` (R10)
+- [x] T021 [US2] Extração de `siapes[]` (parser) e filtro `contem_siape` em `services/filtro.rs` (R2, fronteira digit-boundary vs falso-positivo — issue #2)
+- [x] T022 [US2] Expor válidos × descartados: `filtro::separar` + `montar_resultado` só agrupa válidos
 
 ## Phase 5: US3 — Buscar pelo navegador (P1)
 
 **Meta**: tela web para SIAPE → resultados.
 **Teste independente**: SIAPE inválido bloqueia; válido mostra total+lista.
 
-- [ ] T023 [P] [US3] Teste de componente: validação do campo SIAPE em `tests/BuscaView.spec.ts` (R10)
-- [ ] T024 [US3] `stores/busca.ts` (Pinia): estado busca/loading/erro/resultado
-- [ ] T025 [US3] `views/BuscaView.vue`: campo SIAPE, chamada `ipc.buscarPorSiape`, chips + lista
-- [ ] T026 [US3] Roteamento `/` → BuscaView em `src/router/index.ts`
+- [x] T023 [P] [US3] Teste de componente: validação do campo SIAPE em `app/tests/BuscaView.spec.ts` (R10) + `siape.spec.ts` + `busca_store.spec.ts`
+- [x] T024 [US3] `app/src/stores/busca.ts` (Pinia): estado idle/loading/erro/resultado
+- [x] T025 [US3] `app/src/views/BuscaView.vue`: campo SIAPE, `ipc.buscarPorSiape`, chips + lista agrupada
+- [x] T026 [US3] Roteamento `/` → BuscaView em `app/src/router/index.ts`
 
 ## Phase 6: US4 — Baixar documentos organizados (P2)
 
