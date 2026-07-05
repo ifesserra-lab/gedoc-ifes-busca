@@ -1,0 +1,23 @@
+# Hooks do spec-kit (SDD). Automatizam o issue-first (Constituicao, Principio X).
+# Comandos: pontos viram hifens ao virar slash-command
+#   (speckit.taskstoissues -> /speckit-taskstoissues).
+hooks:
+  after_tasks:
+    - command: speckit.taskstoissues
+      optional: true
+      enabled: true
+      description: >-
+        Gera issues no GitHub a partir das tasks (issue-first, Principio X).
+      prompt: >-
+        As tasks foram geradas. Rode /speckit-taskstoissues para abrir as issues
+        no GitHub antes de implementar.
+
+  before_implement:
+    - command: speckit.taskstoissues
+      optional: true
+      enabled: true
+      description: >-
+        Garante issues abertas para as tasks antes de implementar (Principio X).
+      prompt: >-
+        Antes de implementar, confirme que existem issues para as tasks. Se nao,
+        rode /speckit-taskstoissues.
