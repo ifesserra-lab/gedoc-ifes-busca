@@ -46,8 +46,8 @@ describe("DocItem", () => {
     expect(titulo.text()).toBe(tituloLongo);
   });
 
-  it("mantém o botão de PDF não-acionável (aria-disabled) quando não há arquivo", () => {
-    const wrapper = montarDocItem(criarDoc({ arquivo: null }));
+  it("mantém o botão de PDF sempre não-acionável (aria-disabled) — download pendente de IPC", () => {
+    const wrapper = montarDocItem(criarDoc());
 
     const botao = wrapper.find("button");
     expect(botao.attributes("aria-disabled")).toBe("true");

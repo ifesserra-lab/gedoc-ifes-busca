@@ -101,7 +101,7 @@ function confirmarRemocao(): void {
       titulo="Nenhuma categoria cadastrada"
       descricao="Crie a primeira categoria para começar a classificar os documentos."
     >
-      <UButton icon="i-lucide-plus" @click="abrirCriacao">Nova categoria</UButton>
+      <UButton icon="i-lucide-plus" class="alvo-minimo" @click="abrirCriacao">Nova categoria</UButton>
     </EmptyState>
 
     <div v-else class="categorias__painel">
@@ -152,8 +152,8 @@ function confirmarRemocao(): void {
           </UFormField>
 
           <div class="categoria-form__acoes">
-            <UButton type="button" color="neutral" variant="ghost" @click="fecharModal">Cancelar</UButton>
-            <UButton type="submit">{{ indiceEditando === null ? "Criar" : "Salvar" }}</UButton>
+            <UButton type="button" color="neutral" variant="ghost" class="alvo-minimo" @click="fecharModal">Cancelar</UButton>
+            <UButton type="submit" class="alvo-minimo">{{ indiceEditando === null ? "Criar" : "Salvar" }}</UButton>
           </div>
         </UForm>
       </template>
@@ -167,8 +167,8 @@ function confirmarRemocao(): void {
         </p>
       </template>
       <template #footer>
-        <UButton color="neutral" variant="ghost" @click="cancelarRemocao">Cancelar</UButton>
-        <UButton color="error" @click="confirmarRemocao">Remover</UButton>
+        <UButton color="neutral" variant="ghost" class="alvo-minimo" @click="cancelarRemocao">Cancelar</UButton>
+        <UButton color="error" class="alvo-minimo" @click="confirmarRemocao">Remover</UButton>
       </template>
     </UModal>
   </section>

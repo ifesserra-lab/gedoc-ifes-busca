@@ -25,7 +25,8 @@ Regras: só o **acento** carrega cor; chips de categoria são neutros e só o
 selecionado fica accent. Contraste ≥ 4.5:1 em ambos os temas.
 
 ## Tipografia
-- UI: `-apple-system, "Segoe UI", Roboto, Inter, system-ui, sans-serif`
+- UI: `"Inter", -apple-system, "Segoe UI", Roboto, system-ui, sans-serif`
+  (Inter self-hosted via @fontsource, sempre disponível offline)
 - Dado (SIAPE, datas, contagens): `ui-monospace, "SF Mono", Menlo, monospace`
   com `font-variant-numeric: tabular-nums`.
 - Escala: 12 / 13 / 14 / 16 / 20 / 28 / 34. Labels caixa-alta, tracking ~.12em.
