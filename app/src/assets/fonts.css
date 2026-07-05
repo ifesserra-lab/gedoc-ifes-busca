@@ -1,0 +1,13 @@
+/* Fonte self-hosted (Inter via @fontsource) — D3/FR-006: a CSP do Tauri é
+ * `default-src 'self'`, então nenhuma fonte pode vir de rede/CDN (ex.: Google
+ * Fonts). Apenas os subsets latin/latin-ext (cobrem PT-BR, incl. acentos:
+ * ã, ç, é, ô...) para reduzir o bundle — sem cirílico/grego/vietnamita.
+ * Pesos usados pela escala tipográfica em `tokens.css`. */
+@import "@fontsource/inter/latin-400.css";
+@import "@fontsource/inter/latin-500.css";
+@import "@fontsource/inter/latin-600.css";
+@import "@fontsource/inter/latin-700.css";
+@import "@fontsource/inter/latin-ext-400.css";
+@import "@fontsource/inter/latin-ext-500.css";
+@import "@fontsource/inter/latin-ext-600.css";
+@import "@fontsource/inter/latin-ext-700.css";

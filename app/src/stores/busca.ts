@@ -15,8 +15,20 @@ export const useBuscaStore = defineStore("busca", () => {
   const estado = ref<EstadoBusca>("idle");
   const erro = ref<string | null>(null);
   const resultado = ref<ResultadoView | null>(null);
+  /** Estado de UI (filtro por chip) — vive na store, a View só apresenta. */
+  const categoriaSelecionada = ref<string | null>(null);
 
   const siapeValido = computed(() => validarSiape(siape.value));
+
+  /** `resultado.total === 0` → estado "vazio" (US2/T021), distinto de "resultado". */
+  const vazio = computed(() => estado.value === "resultado" && resultado.value?.total === 0);
+
+  /** Grupo(s) a exibir considerando o chip selecionado ("Todas" quando null). */
+  const gruposFiltrados = computed(() => {
+    const grupos = resultado.value?.categorias ?? [];
+    if (!categoriaSelecionada.value) return grupos;
+    return grupos.filter((grupo) => grupo.categoria === categoriaSelecionada.value);
+  });
 
   async function buscar(): Promise<void> {
     if (!siapeValido.value) {
@@ -28,6 +40,7 @@ export const useBuscaStore = defineStore("busca", () => {
 
     estado.value = "loading";
     erro.value = null;
+    categoriaSelecionada.value = null;
     try {
       resultado.value = await buscarPorSiape({ siape: siape.value });
       estado.value = "resultado";
@@ -37,12 +50,29 @@ export const useBuscaStore = defineStore("busca", () => {
     }
   }
 
+  function selecionarCategoria(categoria: string | null): void {
+    categoriaSelecionada.value = categoria;
+  }
+
   function reiniciar(): void {
     siape.value = "";
     estado.value = "idle";
     erro.value = null;
     resultado.value = null;
+    categoriaSelecionada.value = null;
   }
 
-  return { siape, estado, erro, resultado, siapeValido, buscar, reiniciar };
+  return {
+    siape,
+    estado,
+    erro,
+    resultado,
+    siapeValido,
+    vazio,
+    categoriaSelecionada,
+    gruposFiltrados,
+    buscar,
+    selecionarCategoria,
+    reiniciar,
+  };
 });
