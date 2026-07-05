@@ -2,3 +2,4 @@
 
 pub mod filtro;
 pub mod gedoc_parse;
+pub mod gedoc_repository;

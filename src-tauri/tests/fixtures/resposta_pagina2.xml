@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<partial-response><changes><update id="j_idt65:dataList"><![CDATA[
+<div class="linha">
+  <a href="https://gedoc.ifes.edu.br/documento/aaaa1111bbbb2222cccc3333dddd4444?inline" target="_blank" class="resultadoBuscaLinhaAzul">PORTARIA Nº 41 - 2024 - Concessão de férias</a>
+  <span class="resultadoBuscaLinhaVerde">05/04/2024</span>
+  <div class="highlight">Concede férias ao servidor SIAPE 1998547 conforme escala</div>
+</div>
+<div class="linha">
+  <a href="https://gedoc.ifes.edu.br/documento/eeee5555ffff6666aaaa7777bbbb8888?inline" target="_blank" class="resultadoBuscaLinhaAzul">DESPACHO Nº 52 - 2024 - Encaminhamento de processo</a>
+  <span class="resultadoBuscaLinhaVerde">12/05/2024</span>
+  <div class="highlight">Encaminha o processo do servidor SIAPE 1998547 para análise</div>
+</div>
+]]></update><update id="j_idt1:javax.faces.ViewState:0"><![CDATA[-1234567890123456789:-1111111111111111111]]></update></changes></partial-response>
