@@ -28,3 +28,7 @@ src-tauri/gen/
 app/node_modules/
 app/dist/
 
+# --- Nuxt UI (modo Vue) — d.ts gerados por unplugin-auto-import/-vue-components ---
+app/auto-imports.d.ts
+app/components.d.ts
+

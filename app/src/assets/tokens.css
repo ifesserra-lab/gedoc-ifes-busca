@@ -1,0 +1,129 @@
+/* Design system — GeDoc IFES Toolkit (Constituição XII).
+ *
+ * Paleta neutra (escala de cinza, "slate") + 1 cor de acento; tipografia
+ * (Inter, escala 12/14/16/20/28); espaçamento múltiplo de 4; raio suave;
+ * sombra discreta. Temas claro/escuro via `@media (prefers-color-scheme)`
+ * (padrão do sistema) e classe `.dark`/`.light` (alternador manual — T016,
+ * aplicada pelo VueUse `useColorMode`, ver `App.vue`).
+ *
+ * Regra: nenhum componente usa cor/tamanho hardcoded — sempre estas
+ * variáveis (SC-001). Contraste validado (WCAG AA, SC-002) — ver
+ * `specs/002-ui-nuxt-minimalista/` para os cálculos.
+ *
+ * `--color-accent-*`: paleta Tailwind (50-950) da cor de acento, consumida
+ * pelo Nuxt UI via `ui.colors.primary = "accent"` (app/src/ui.config.ts) —
+ * mesma fonte de cor usada pelos componentes UButton/UBadge/etc.
+ */
+@theme static {
+  --color-accent-50: #f0f5fe;
+  --color-accent-100: #dde7fd;
+  --color-accent-200: #bdd0fa;
+  --color-accent-300: #90aff4;
+  --color-accent-400: #5a88ed;
+  --color-accent-500: #2764e7;
+  --color-accent-600: #1952cc;
+  --color-accent-700: #1844a5;
+  --color-accent-800: #173982;
+  --color-accent-900: #172f63;
+  --color-accent-950: #111f3b;
+}
+
+:root {
+  /* Tipografia — 1 família (Inter, self-hosted em fonts.css), escala modular */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --text-xs: 0.75rem; /* 12px */
+  --text-sm: 0.875rem; /* 14px */
+  --text-md: 1rem; /* 16px */
+  --text-lg: 1.25rem; /* 20px */
+  --text-xl: 1.75rem; /* 28px */
+
+  /* Espaçamento — múltiplos de 4px */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 28px;
+  --sp-8: 32px;
+
+  /* Raio — suave, consistente com Nuxt UI (arredondado, não "pill") */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+
+  /* Sombra — discreta (profundidade sutil, não decorativa) */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.08);
+
+  /* Cores semânticas — tema claro (padrão) */
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --text: #0f172a;
+  --muted: #475569;
+  --border: #e2e8f0;
+  --accent: var(--color-accent-600);
+  --accent-contrast: #ffffff;
+  --danger: #b91c1c;
+  --success: #15803d;
+  --focus-ring: var(--accent);
+}
+
+/* Tema escuro — preferência do sistema (sem alternância manual ainda) */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --surface: #0f172a;
+    --surface-2: #1e293b;
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --border: #334155;
+    --accent: var(--color-accent-400);
+    --accent-contrast: #0f172a;
+    --danger: #f87171;
+    --success: #4ade80;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* Tema escuro — alternância manual (classe aplicada pelo VueUse useColorMode
+ * em <html>, ver App.vue). Vence mesmo com o sistema em modo claro. */
+:root.dark {
+  --surface: #0f172a;
+  --surface-2: #1e293b;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --border: #334155;
+  --accent: var(--color-accent-400);
+  --accent-contrast: #0f172a;
+  --danger: #f87171;
+  --success: #4ade80;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Tema claro — força claro mesmo com o sistema em modo escuro. */
+:root.light {
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --text: #0f172a;
+  --muted: #475569;
+  --border: #e2e8f0;
+  --accent: var(--color-accent-600);
+  --accent-contrast: #ffffff;
+  --danger: #b91c1c;
+  --success: #15803d;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+/* Base — aplica os tokens ao documento; foco sempre visível (WCAG AA). */
+html,
+body {
+  background-color: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
