@@ -1,5 +1,7 @@
 //! Categoria — rótulo de classificação definido pelo usuário (R5).
-//! Persistência (`config/categoria.json`) é TODO de US8; aqui só o modelo.
+//! Leitura de `config/categoria.json` implementada em `services::categorias`
+//! (US5); CRUD completo (criar/editar/remover, persistindo de volta no
+//! arquivo) é TODO de US8. Aqui só o modelo.
 
 use serde::{Deserialize, Serialize};
 
