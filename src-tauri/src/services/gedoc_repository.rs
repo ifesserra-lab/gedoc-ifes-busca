@@ -289,6 +289,14 @@ mod tests {
                     motivo: "FakeHttp: nenhuma resposta configurada para este POST".to_string(),
                 })
         }
+
+        fn get_bytes(&self, _url: &str) -> Result<Vec<u8>, AppError> {
+            // Não exercitado pelos testes de busca (US1/US2/US3); download é
+            // US4, coberto em `services::downloader`.
+            Err(AppError::FalhaPortal {
+                motivo: "FakeHttp: get_bytes não implementado neste dublê".to_string(),
+            })
+        }
     }
 
     fn ids_teste() -> Ids {

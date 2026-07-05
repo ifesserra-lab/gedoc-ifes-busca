@@ -37,7 +37,8 @@ export type AppErrorPayload =
   | { tipo: "FalhaIA"; mensagem: { motivo: string } }
   | { tipo: "CategoriaSemNome"; mensagem: null }
   | { tipo: "NomeDuplicado"; mensagem: { nome: string } }
-  | { tipo: "NaoImplementado"; mensagem: string };
+  | { tipo: "NaoImplementado"; mensagem: string }
+  | { tipo: "FalhaArquivo"; mensagem: { motivo: string } };
 
 function ehAppErrorPayload(valor: unknown): valor is AppErrorPayload {
   return typeof valor === "object" && valor !== null && "tipo" in valor;
@@ -61,6 +62,8 @@ export function mensagemDeErro(erro: unknown): string {
       return `Categoria já existe: '${erro.mensagem.nome}'`;
     case "NaoImplementado":
       return `Recurso ainda não implementado: ${erro.mensagem}`;
+    case "FalhaArquivo":
+      return `Falha ao acessar arquivo: ${erro.mensagem.motivo}`;
     default:
       return "Erro inesperado ao comunicar com o backend.";
   }
@@ -73,4 +76,34 @@ export function mensagemDeErro(erro: unknown): string {
  */
 export async function buscarPorSiape(input: BuscarPorSiapeInput): Promise<ResultadoView> {
   return invoke<ResultadoView>("buscar_por_siape", { input });
+}
+
+export interface BaixarDocumentoInput {
+  siape: string;
+  link: string;
+  titulo: string;
+  data: string | null;
+}
+
+export interface AbrirDocumentoInput {
+  siape: string;
+  arquivo: string;
+}
+
+/**
+ * US4 — baixa o PDF de um documento para o diretório de dados do app
+ * (nunca o repositório — PII de terceiros, R7) e devolve só o **nome** do
+ * arquivo gravado (nunca o caminho absoluto).
+ */
+export async function baixarDocumento(input: BaixarDocumentoInput): Promise<string> {
+  return invoke<string>("baixar_documento", { input });
+}
+
+/**
+ * US4 — abre, com o aplicativo padrão do sistema, um PDF já baixado.
+ * `arquivo` é o nome devolvido por `baixarDocumento` (sanitizado no backend,
+ * R7); nunca um caminho arbitrário.
+ */
+export async function abrirDocumento(input: AbrirDocumentoInput): Promise<void> {
+  return invoke<void>("abrir_documento", { input });
 }
