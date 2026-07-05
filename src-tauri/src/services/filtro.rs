@@ -17,9 +17,33 @@ pub fn filtrar_por_siape(docs: &mut [Documento], termo: &str) {
             true
         } else {
             d.siapes.iter().any(|s| s == termo)
-                || d.trecho.as_deref().unwrap_or("").contains(termo)
+                || contem_numero(d.trecho.as_deref().unwrap_or(""), termo)
         };
     }
+}
+
+/// Verdadeiro se `numero` aparece em `texto` como número isolado, isto é, não
+/// ladeado por outros dígitos. Evita o falso-positivo de substring em que o
+/// SIAPE buscado e subcadeia de um numero maior (ex.: buscar "12345" casaria
+/// "processo 123456/2024") -- exatamente o que a issue #2 exige evitar (R2).
+/// O crate `regex` do Rust nao tem lookaround; checamos as fronteiras
+/// manualmente. `numero` e sempre ASCII (digitos), logo checar um unico byte
+/// vizinho e seguro (um byte de continuacao UTF-8 nao e `ascii_digit`).
+fn contem_numero(texto: &str, numero: &str) -> bool {
+    let bytes = texto.as_bytes();
+    let n = numero.len();
+    let mut inicio = 0;
+    while let Some(rel) = texto[inicio..].find(numero) {
+        let i = inicio + rel;
+        let antes_ok = i == 0 || !bytes[i - 1].is_ascii_digit();
+        let fim = i + n;
+        let depois_ok = fim >= bytes.len() || !bytes[fim].is_ascii_digit();
+        if antes_ok && depois_ok {
+            return true;
+        }
+        inicio = i + 1;
+    }
+    false
 }
 
 /// Separa os documentos já marcados em (válidos, descartados), preservando a
@@ -73,6 +97,24 @@ mod tests {
         )];
         filtrar_por_siape(&mut docs, "1998547");
         assert!(!docs[0].contem_siape);
+    }
+
+    #[test]
+    fn descarta_quando_termo_e_subcadeia_de_numero_maior() {
+        // R2 / issue #2: buscar "12345" NAO pode casar "123456/2024".
+        let mut docs = vec![doc_com_trecho(
+            "Referente ao processo 123456/2024 da unidade",
+            vec![],
+        )];
+        filtrar_por_siape(&mut docs, "12345");
+        assert!(!docs[0].contem_siape, "substring de numero maior nao vale");
+    }
+
+    #[test]
+    fn marca_quando_numero_isolado_com_pontuacao_ao_redor() {
+        let mut docs = vec![doc_com_trecho("matricula 1998547, a partir de", vec![])];
+        filtrar_por_siape(&mut docs, "1998547");
+        assert!(docs[0].contem_siape);
     }
 
     #[test]

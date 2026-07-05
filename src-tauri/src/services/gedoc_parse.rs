@@ -26,7 +26,7 @@ static RE_DATA: LazyLock<Regex> =
 static RE_HIGHLIGHT: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"(?s)class="highlight">(.*?)</div>"#).unwrap());
 static RE_SIAPE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)SIAPE\s*(?:n?º?\s*|:\s*)?([0-9]{5,8})").unwrap());
+    LazyLock::new(|| Regex::new(r"(?i)SIAPE\s*(?:n?º?\s*|:\s*)?([0-9]{5,8})\b").unwrap());
 static RE_TAGS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<[^>]+>").unwrap());
 static RE_ESPACOS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+").unwrap());
 
