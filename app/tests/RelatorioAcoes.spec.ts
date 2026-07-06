@@ -10,8 +10,9 @@
 // `UTooltip` (Reka UI) exige um `TooltipProvider` ancestral — mesmo padrão
 // de `DocItem.spec.ts`.
 import { flushPromises, mount } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
 import { TooltipProvider } from "reka-ui";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h } from "vue";
 
 import RelatorioAcoes from "@/components/busca/RelatorioAcoes.vue";
@@ -55,11 +56,16 @@ function montar(resultado: ResultadoView | null) {
 }
 
 function botoes(wrapper: ReturnType<typeof montar>) {
-  const [relatorio, zip] = wrapper.findAll("button");
-  return { relatorio, zip };
+  // Ordem no template: relatório · baixar todos os PDFs · ZIP.
+  const [relatorio, todos, zip] = wrapper.findAll("button");
+  return { relatorio, todos, zip };
 }
 
 describe("RelatorioAcoes", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia()); // RelatorioAcoes usa a store de busca (US #22)
+  });
+
   it("sem resultado, os dois botões ficam desabilitados", () => {
     const wrapper = montar(null);
 
@@ -105,6 +111,21 @@ describe("RelatorioAcoes", () => {
     await flushPromises();
 
     expect(espiao).toHaveBeenCalledWith(SIAPE);
+  });
+
+  it("clicar em 'Baixar todos os PDFs' baixa cada documento do resultado (US #22)", async () => {
+    const espiao = vi.spyOn(ipc, "baixarDocumento").mockResolvedValue("a.pdf");
+    const wrapper = montar(resultadoCom());
+
+    await botoes(wrapper).todos.trigger("click");
+    await flushPromises();
+
+    expect(espiao).toHaveBeenCalledWith({
+      siape: SIAPE,
+      link: "https://gedoc.ifes.edu.br/documento/aaaa?inline",
+      titulo: "PORTARIA Nº 1 - 2024 - Progressão",
+      data: "10/01/2024",
+    });
   });
 
   it("mostra 'Gerando...' e desabilita só o botão do relatório enquanto ele está em andamento", async () => {

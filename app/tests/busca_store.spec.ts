@@ -165,3 +165,61 @@ describe("useBuscaStore — filtro por categoria e estado vazio", () => {
     expect(store.resultado).toBeNull();
   });
 });
+
+describe("useBuscaStore — baixar todos os PDFs (US #22)", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  function docView(link: string) {
+    return { titulo: `Doc ${link}`, data: "10/01/2024", link, arquivo: null, resumo: null };
+  }
+
+  it("baixa cada documento uma vez, com o SIAPE informado", async () => {
+    const store = useBuscaStore();
+    const espiao = vi.spyOn(ipc, "baixarDocumento").mockResolvedValue("arquivo.pdf");
+
+    const resumo = await store.baixarTodos([docView("l1"), docView("l2")], "1998547");
+
+    expect(resumo).toEqual({ ok: 2, falhas: 0 });
+    expect(espiao).toHaveBeenCalledTimes(2);
+    expect(espiao).toHaveBeenCalledWith({ siape: "1998547", link: "l1", titulo: "Doc l1", data: "10/01/2024" });
+    expect(store.downloadProgresso).toBeNull(); // zerado ao fim
+  });
+
+  it("falha em um documento não aborta o lote (R11)", async () => {
+    const store = useBuscaStore();
+    vi.spyOn(ipc, "baixarDocumento")
+      .mockResolvedValueOnce("a.pdf")
+      .mockRejectedValueOnce({ tipo: "FalhaPortal", mensagem: { motivo: "timeout" } })
+      .mockResolvedValueOnce("c.pdf");
+
+    const resumo = await store.baixarTodos([docView("l1"), docView("l2"), docView("l3")], "1998547");
+
+    expect(resumo).toEqual({ ok: 2, falhas: 1 });
+  });
+
+  it("no-op quando não há documentos ou SIAPE", async () => {
+    const store = useBuscaStore();
+    const espiao = vi.spyOn(ipc, "baixarDocumento");
+
+    expect(await store.baixarTodos([], "1998547")).toEqual({ ok: 0, falhas: 0 });
+    expect(await store.baixarTodos([docView("l1")], "")).toEqual({ ok: 0, falhas: 0 });
+    expect(espiao).not.toHaveBeenCalled();
+  });
+
+  it("expõe progresso durante o download (atual/total)", async () => {
+    const store = useBuscaStore();
+    const progressos: Array<{ atual: number; total: number } | null> = [];
+    vi.spyOn(ipc, "baixarDocumento").mockImplementation(async () => {
+      progressos.push(store.downloadProgresso ? { ...store.downloadProgresso } : null);
+      return "x.pdf";
+    });
+
+    await store.baixarTodos([docView("l1"), docView("l2")], "1998547");
+
+    // Durante o 1º download, o total já é conhecido (2) e atual ainda 0.
+    expect(progressos[0]).toEqual({ atual: 0, total: 2 });
+    expect(store.baixandoTodos).toBe(false); // encerrado
+  });
+});

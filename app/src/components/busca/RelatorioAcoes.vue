@@ -10,8 +10,10 @@
 // backend; este componente só administra o estado visual idle/processando/
 // erro de cada ação, independentemente uma da outra.
 import { computed, ref } from "vue";
+import { useToast } from "@nuxt/ui/composables";
 
 import { baixarZip, gerarRelatorio, mensagemDeErro, type ResultadoView } from "@/services/ipc";
+import { useBuscaStore } from "@/stores/busca";
 
 const props = defineProps<{
   resultado: ResultadoView | null;
@@ -23,6 +25,28 @@ const estadoRelatorio = ref<Estado>("idle");
 const erroRelatorio = ref<string | null>(null);
 const estadoZip = ref<Estado>("idle");
 const erroZip = ref<string | null>(null);
+
+const store = useBuscaStore();
+const toast = useToast();
+
+/** US #22 — progresso e ação de baixar todos os PDFs (delegados à store). */
+const progresso = computed(() => store.downloadProgresso);
+const baixandoTodos = computed(() => store.baixandoTodos);
+
+async function baixarTodosPdfs(): Promise<void> {
+  if (!props.resultado || !temItens.value || baixandoTodos.value) return;
+  const docs = props.resultado.categorias.flatMap((grupo) => grupo.itens);
+  const { ok, falhas } = await store.baixarTodos(docs, props.resultado.termo);
+  if (falhas === 0) {
+    toast.add({ title: `${ok} PDF(s) baixado(s).`, color: "success", icon: "i-lucide-check" });
+  } else {
+    toast.add({
+      title: `${ok} baixado(s), ${falhas} com falha.`,
+      color: "warning",
+      icon: "i-lucide-triangle-alert",
+    });
+  }
+}
 
 /** Só habilita as ações quando há ao menos 1 documento para exportar — um
  * `resultado.total > 0` de portal não basta: R2 pode descartar tudo e deixar
@@ -83,6 +107,21 @@ async function baixarDocumentosZip(): Promise<void> {
         </UButton>
       </UTooltip>
 
+      <UTooltip text="Baixa o PDF de todos os documentos listados (pula os já baixados).">
+        <UButton
+          icon="i-lucide-folder-down"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          class="alvo-minimo"
+          :loading="baixandoTodos"
+          :disabled="!temItens || baixandoTodos"
+          @click="baixarTodosPdfs"
+        >
+          {{ baixandoTodos ? "Baixando..." : "Baixar todos os PDFs" }}
+        </UButton>
+      </UTooltip>
+
       <UTooltip :text="erroZip ?? 'Baixa um ZIP com os PDFs já baixados deste SIAPE.'">
         <UButton
           icon="i-lucide-download"
@@ -97,6 +136,18 @@ async function baixarDocumentosZip(): Promise<void> {
           {{ estadoZip === "processando" ? "Baixando..." : "Baixar ZIP" }}
         </UButton>
       </UTooltip>
+    </div>
+
+    <div
+      v-if="progresso"
+      class="relatorio-acoes__progresso"
+      role="status"
+      aria-live="polite"
+    >
+      <span class="relatorio-acoes__progresso-rotulo mono">
+        Baixando {{ progresso.atual }} de {{ progresso.total }}
+      </span>
+      <UProgress :model-value="progresso.atual" :max="progresso.total" size="sm" />
     </div>
 
     <p v-if="erroRelatorio || erroZip" role="alert" class="relatorio-acoes__erro">
@@ -116,6 +167,25 @@ async function baixarDocumentosZip(): Promise<void> {
 .relatorio-acoes__botoes {
   display: flex;
   gap: var(--sp-1);
+}
+
+.relatorio-acoes__progresso {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--sp-1);
+  width: 100%;
+  min-width: 220px;
+}
+
+.relatorio-acoes__progresso-rotulo {
+  font-size: var(--text-13);
+  color: var(--muted);
+}
+
+.relatorio-acoes__progresso :deep([role="progressbar"]),
+.relatorio-acoes__progresso > * {
+  width: 100%;
 }
 
 .relatorio-acoes__erro {

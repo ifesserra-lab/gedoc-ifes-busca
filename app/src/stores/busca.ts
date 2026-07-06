@@ -5,10 +5,28 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 
-import { buscarPorSiape, mensagemDeErro, type ResultadoView } from "@/services/ipc";
+import {
+  baixarDocumento,
+  buscarPorSiape,
+  type DocView,
+  mensagemDeErro,
+  type ResultadoView,
+} from "@/services/ipc";
 import { MENSAGEM_SIAPE_INVALIDO, validarSiape } from "@/utils/siape";
 
 export type EstadoBusca = "idle" | "loading" | "erro" | "resultado";
+
+/** Progresso do download em lote (US #22): documento atual / total. */
+export interface ProgressoDownload {
+  atual: number;
+  total: number;
+}
+
+/** Resumo do download em lote: quantos baixaram e quantos falharam. */
+export interface ResumoDownload {
+  ok: number;
+  falhas: number;
+}
 
 export const useBuscaStore = defineStore("busca", () => {
   const siape = ref("");
@@ -23,8 +41,17 @@ export const useBuscaStore = defineStore("busca", () => {
    * isso é opt-in explícito do usuário, nunca ligado sozinho numa busca.
    */
   const usarIa = ref(false);
+  /**
+   * US #22 — progresso do "Baixar todos os PDFs". `null` quando não há
+   * download em lote em andamento; caso contrário, `{ atual, total }` para a
+   * barra de progresso. Estado de UI, vive na store (a View só apresenta).
+   */
+  const downloadProgresso = ref<ProgressoDownload | null>(null);
 
   const siapeValido = computed(() => validarSiape(siape.value));
+
+  /** True enquanto um download em lote está em andamento (desabilita a ação). */
+  const baixandoTodos = computed(() => downloadProgresso.value !== null);
 
   /** `resultado.total === 0` → estado "vazio" (US2/T021), distinto de "resultado". */
   const vazio = computed(() => estado.value === "resultado" && resultado.value?.total === 0);
@@ -59,6 +86,37 @@ export const useBuscaStore = defineStore("busca", () => {
     }
   }
 
+  /**
+   * US #22 — baixa o PDF de cada documento de `docs`, um a um, reusando o
+   * comando `baixar_documento` (idempotente: pula os já baixados). Atualiza
+   * `downloadProgresso` a cada documento para a barra de progresso. R11: a
+   * falha em um documento não aborta o lote — é contada e o processo segue.
+   * Recebe `docs`/`siape` explicitamente (o chamador passa os itens exibidos),
+   * mantendo a store como única dona do estado de progresso. No-op (0/0) sem
+   * documentos ou SIAPE.
+   */
+  async function baixarTodos(docs: DocView[], siapeDoc: string): Promise<ResumoDownload> {
+    if (!siapeDoc || docs.length === 0) return { ok: 0, falhas: 0 };
+
+    let ok = 0;
+    let falhas = 0;
+    downloadProgresso.value = { atual: 0, total: docs.length };
+    try {
+      for (const doc of docs) {
+        try {
+          await baixarDocumento({ siape: siapeDoc, link: doc.link, titulo: doc.titulo, data: doc.data });
+          ok += 1;
+        } catch {
+          falhas += 1; // R11: um documento com erro não derruba o lote
+        }
+        downloadProgresso.value = { atual: ok + falhas, total: docs.length };
+      }
+    } finally {
+      downloadProgresso.value = null;
+    }
+    return { ok, falhas };
+  }
+
   function selecionarCategoria(categoria: string | null): void {
     categoriaSelecionada.value = categoria;
   }
@@ -81,7 +139,10 @@ export const useBuscaStore = defineStore("busca", () => {
     categoriaSelecionada,
     gruposFiltrados,
     usarIa,
+    downloadProgresso,
+    baixandoTodos,
     buscar,
+    baixarTodos,
     selecionarCategoria,
     reiniciar,
   };
