@@ -17,6 +17,7 @@
 use std::path::Path;
 
 use crate::domain::documento::Documento;
+use crate::domain::nome_arquivo::nome_arquivo;
 use crate::error::AppError;
 use crate::ports::ia::ChatIa;
 use crate::services::cache::CacheArquivo;
@@ -114,14 +115,18 @@ fn texto_fonte(doc: &Documento, siape: &str, dir_documentos: &Path) -> String {
     truncar(texto.trim(), MAX_CHARS)
 }
 
-/// Lê e extrai o texto do PDF de `doc`, se `doc.arquivo` estiver preenchido
-/// e o arquivo existir sob `dir_documentos/<siape>/` (R7 — mesmo caminho
-/// seguro usado pelo download/abertura, `downloader::caminho_seguro`).
-/// Qualquer falha (nome inválido, arquivo ausente, PDF ilegível) vira
-/// `None` — o chamador cai no trecho.
+/// Lê e extrai o texto do PDF de `doc`, se ele já tiver sido baixado sob
+/// `dir_documentos/<siape>/` (R7 — mesmo caminho seguro do download/abertura,
+/// `downloader::caminho_seguro`). O nome do PDF é **determinístico** (R3):
+/// derivamos com `nome_arquivo(doc)` — a mesma função que `downloader` usa
+/// para gravar — em vez de depender de `doc.arquivo`, que não é populado no
+/// fluxo de busca (só o download conhece o nome). Se `doc.arquivo` já vier
+/// preenchido (chamadas futuras), ele tem prioridade. Qualquer falha (nome
+/// inválido, arquivo ausente, PDF ilegível) vira `None` — o chamador cai no
+/// trecho.
 fn texto_do_pdf(doc: &Documento, siape: &str, dir_documentos: &Path) -> Option<String> {
-    let arquivo = doc.arquivo.as_deref()?;
-    let caminho = downloader::caminho_seguro(dir_documentos, siape, arquivo).ok()?;
+    let arquivo = doc.arquivo.clone().unwrap_or_else(|| nome_arquivo(doc));
+    let caminho = downloader::caminho_seguro(dir_documentos, siape, &arquivo).ok()?;
     let bytes = std::fs::read(caminho).ok()?;
     texto_pdf::extrair_texto(&bytes)
 }
@@ -205,6 +210,28 @@ mod tests {
         assert!(
             texto.contains("Documento de teste"),
             "deveria usar o texto do PDF, obteve: {texto:?}"
+        );
+    }
+
+    #[test]
+    fn usa_o_pdf_baixado_pelo_nome_deterministico_mesmo_sem_doc_arquivo() {
+        // Fluxo real de produção: `doc.arquivo` é None (a busca não o popula),
+        // mas o PDF foi baixado sob o nome determinístico (R3). O resumidor
+        // deve encontrá-lo derivando o nome com `nome_arquivo`, não via
+        // `doc.arquivo` — este é o bug que a revisão de #6 apontou.
+        let dir = tempdir().expect("tempdir");
+        let pasta_siape = dir.path().join(SIAPE_TESTE);
+        fs::create_dir_all(&pasta_siape).expect("cria pasta do siape");
+
+        let d = doc("l1", "PORTARIA Nº 1 - 2024 - Assunto");
+        assert!(d.arquivo.is_none(), "cenário: busca não popula arquivo");
+        let nome = crate::domain::nome_arquivo::nome_arquivo(&d);
+        fs::write(pasta_siape.join(&nome), PDF_FIXTURE).expect("grava PDF baixado");
+
+        let texto = texto_fonte(&d, SIAPE_TESTE, dir.path());
+        assert!(
+            texto.contains("Documento de teste"),
+            "deveria achar o PDF pelo nome derivado, obteve: {texto:?}"
         );
     }
 

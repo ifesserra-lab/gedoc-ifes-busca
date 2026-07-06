@@ -675,6 +675,28 @@ mod tests {
     }
 
     #[test]
+    fn montar_resultado_repassa_arquivo_e_resumo_do_documento_a_view() {
+        // Regressão: `DocView::from` já descartou `arquivo`/`resumo` (hard-coded
+        // None); sem eles, o resumo (US6) e o PDF (US4) nunca chegariam à View.
+        let mut doc = doc_com_siape(
+            "https://gedoc.ifes.edu.br/documento/cccc?inline",
+            "PORTARIA Nº 3 - 2024 - Assunto",
+            "1998547",
+        );
+        doc.arquivo = Some("2024_3_Assunto.pdf".to_string());
+        doc.resumo = Some("Determina a progressão do servidor.".to_string());
+
+        let resultado = montar_resultado("1998547", 1, vec![doc], &[]);
+        let item = &resultado.categorias[0].itens[0];
+
+        assert_eq!(item.arquivo.as_deref(), Some("2024_3_Assunto.pdf"));
+        assert_eq!(
+            item.resumo.as_deref(),
+            Some("Determina a progressão do servidor.")
+        );
+    }
+
+    #[test]
     fn montar_resultado_sem_documentos_validos_nao_cria_grupo() {
         let resultado = montar_resultado("1998547", 5, Vec::new(), &[]);
         assert_eq!(resultado.total, 5);

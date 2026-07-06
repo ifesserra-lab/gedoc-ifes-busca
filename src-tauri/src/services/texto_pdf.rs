@@ -23,7 +23,18 @@ pub const MAX_CHARS: usize = 6000;
 /// inválidos, PDF corrompido/criptografado, sem texto) ou quando o
 /// resultado fica vazio após `trim`.
 pub fn extrair_texto(bytes: &[u8]) -> Option<String> {
-    let texto = pdf_extract::extract_text_from_mem(bytes).ok()?;
+    // `pdf-extract` tem muitos `assert!`/`unwrap()` internos que PANICAM em
+    // PDFs estruturalmente válidos mas semanticamente corrompidos (ex.:
+    // `/Widths` menor que `LastChar-FirstChar+1`). Sem `catch_unwind`, esse
+    // panic subiria por `resumir_lote` e abortaria o lote inteiro dentro do
+    // `spawn_blocking` — violando R11 e a promessa "nunca panica" acima.
+    let extracao = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        pdf_extract::extract_text_from_mem(bytes)
+    }));
+    let texto = match extracao {
+        Ok(Ok(t)) => t,
+        _ => return None, // erro de extração OU panic capturado
+    };
     let texto = texto.trim();
     if texto.is_empty() {
         None
@@ -65,6 +76,19 @@ mod tests {
     #[test]
     fn bytes_vazios_retornam_none_sem_panico() {
         assert_eq!(extrair_texto(b""), None);
+    }
+
+    #[test]
+    fn pdf_estruturalmente_quebrado_retorna_none_sem_panico() {
+        // Metade do PDF válido: estrutura parcial que leva `pdf-extract` a
+        // erro ou panic interno — `catch_unwind` garante `None`, não crash.
+        let truncado = &PDF_FIXTURE[..PDF_FIXTURE.len() / 2];
+        assert_eq!(extrair_texto(truncado), None);
+        // Cabeçalho de PDF seguido de lixo (passa da checagem de assinatura).
+        assert_eq!(
+            extrair_texto(b"%PDF-1.4\n\xff\xff\xff garbage \x00\x01"),
+            None
+        );
     }
 
     #[test]
