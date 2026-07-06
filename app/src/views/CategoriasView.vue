@@ -4,6 +4,7 @@
 // stores/categorias.ts) vivem na store; a View só apresenta e coordena
 // abertura/fechamento de modais (estado de UI local, não é regra de negócio).
 import { onMounted, reactive, ref } from "vue";
+import { useToast } from "@nuxt/ui/composables";
 import type { ColumnDef } from "@tanstack/vue-table";
 
 import EmptyState from "@/components/base/EmptyState.vue";
@@ -12,6 +13,12 @@ import LoadingState from "@/components/base/LoadingState.vue";
 import { type CategoriaItem, useCategoriasStore } from "@/stores/categorias";
 
 const store = useCategoriasStore();
+const toast = useToast();
+
+/** US2/T022 — feedback imediato de sucesso via toast (não-bloqueante). */
+function toastSucesso(titulo: string): void {
+  toast.add({ title: titulo, color: "success", icon: "i-lucide-check" });
+}
 
 onMounted(() => store.carregar());
 
@@ -55,8 +62,12 @@ function validarFormulario(state: Partial<CategoriaItem>): Array<{ name: string;
 }
 
 async function aoSubmeter(evento: { data: CategoriaItem }): Promise<void> {
+  const editando = indiceEditando.value !== null;
   const erro = await store.salvar(evento.data, indiceEditando.value);
-  if (!erro) fecharModal();
+  if (!erro) {
+    fecharModal();
+    toastSucesso(editando ? "Categoria atualizada." : "Categoria criada.");
+  }
 }
 
 // --- Confirmação de remoção ---
@@ -79,7 +90,10 @@ async function confirmarRemocao(): Promise<void> {
   const erro = await store.remover(indiceRemovendo.value);
   // Fecha só em sucesso; em falha, mantém o diálogo aberto exibindo `store.erro`
   // (feedback imediato — Princípio XII), permitindo nova tentativa.
-  if (!erro) cancelarRemocao();
+  if (!erro) {
+    cancelarRemocao();
+    toastSucesso("Categoria removida.");
+  }
 }
 </script>
 
