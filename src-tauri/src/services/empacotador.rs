@@ -39,7 +39,7 @@ pub fn montar_zip(dir_siape: &Path, saida: &Path) -> Result<usize, AppError> {
     }
 
     let arquivo_zip = File::create(saida).map_err(|e| AppError::FalhaArquivo {
-        motivo: format!("Falha ao criar '{}': {e}", saida.display()),
+        motivo: format!("Falha ao criar o arquivo ZIP: {e}"),
     })?;
     let mut zip = ZipWriter::new(arquivo_zip);
     let opcoes = SimpleFileOptions::default();
@@ -82,7 +82,7 @@ fn listar_pdfs(dir: &Path) -> Result<Vec<PathBuf>, AppError> {
     }
 
     let entradas = fs::read_dir(dir).map_err(|e| AppError::FalhaArquivo {
-        motivo: format!("Falha ao ler '{}': {e}", dir.display()),
+        motivo: format!("Falha ao ler a pasta de documentos: {e}"),
     })?;
 
     let mut pdfs = Vec::new();

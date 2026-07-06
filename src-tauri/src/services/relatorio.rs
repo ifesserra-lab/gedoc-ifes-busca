@@ -119,11 +119,16 @@ pub fn gerar_markdown(resultado: &ResultadoView) -> String {
 
             let data = item.data.as_deref().unwrap_or("-");
             let mut meta = format!(
-                "**Data:** {} · **SIAPE:** {} · [Original]({})",
+                "**Data:** {} · **SIAPE:** {}",
                 escapar_texto(data),
                 escapar_texto(&resultado.termo),
-                escapar_link(&item.link),
             );
+            // Só vira link clicável se o esquema for http/https — evita XSS via
+            // `href="javascript:"`/`data:` num link malicioso vindo do portal.
+            match link_seguro(&item.link) {
+                Some(url) => meta.push_str(&format!(" · [Original]({url})")),
+                None => meta.push_str(" · Original (link indisponível)"),
+            }
             if let Some(arquivo) = &item.arquivo {
                 meta.push_str(&format!(" · Arquivo: `{}`", escapar_code_span(arquivo)));
             }
@@ -192,13 +197,21 @@ fn escapar_code_span(s: &str) -> String {
     s.replace('`', "'")
 }
 
-/// Sanitiza a URL usada em `[Original](link)`: escapa parênteses (que, sem
-/// isso, fechariam a sintaxe do link Markdown cedo) via percent-encoding —
-/// inofensivo para uma URL válida. `html::push_html` já aplica seu próprio
-/// escape de atributo `href` (`&`, aspas) ao renderizar o link; isto cobre só
-/// a etapa de parsing do Markdown em si.
-fn escapar_link(s: &str) -> String {
-    s.replace('(', "%28").replace(')', "%29")
+/// Retorna a URL segura para `[Original](...)` — **apenas** se o esquema for
+/// `http`/`https`. Faz percent-encoding de parênteses (que fechariam a sintaxe
+/// do link Markdown cedo). Qualquer outro esquema (`javascript:`, `data:`,
+/// `file:`, ...) devolve `None`: o relatório é HTML aberto no navegador, então
+/// um `href` malicioso vindo do portal seria XSS clicável. `html::push_html`
+/// escapa `&`/aspas do atributo, mas NÃO valida o esquema — por isso a checagem
+/// aqui é a barreira real.
+fn link_seguro(link: &str) -> Option<String> {
+    let l = link.trim();
+    let baixo = l.to_ascii_lowercase();
+    if baixo.starts_with("http://") || baixo.starts_with("https://") {
+        Some(l.replace('(', "%28").replace(')', "%29"))
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -454,6 +467,34 @@ mod tests {
         assert!(!html.contains("<script>"));
         assert!(!html.contains("<img"));
         assert!(html.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn link_com_esquema_perigoso_nunca_vira_href_clicavel() {
+        // Vetor real: o `link` chega do portal e é aberto no navegador. Um
+        // esquema `javascript:`/`data:` não pode virar um href executável.
+        for esquema in ["javascript:alert(document.cookie)", "data:text/html,<script>alert(1)</script>"] {
+            let item = DocView {
+                titulo: "PORTARIA Nº 1 - 2024 - X".to_string(),
+                data: Some("10/01/2024".to_string()),
+                link: format!("{esquema}//documento/0123456789abcdef0123456789abcdef"),
+                arquivo: None,
+                resumo: Some("Resumo.".to_string()),
+            };
+            let resultado = resultado_com(vec![CategoriaGrupo {
+                categoria: "Outros".to_string(),
+                qtd: 1,
+                itens: vec![item],
+            }]);
+
+            let md = gerar_markdown(&resultado);
+            let html = markdown_para_html(&md, "Relatório");
+
+            assert!(!md.contains("[Original](javascript:"), "md não pode linkar javascript:");
+            assert!(!html.contains("href=\"javascript:"), "html: sem href javascript:");
+            assert!(!html.contains("href=\"data:"), "html: sem href data:");
+            assert!(md.contains("Original (link indisponível)"), "link inseguro é rotulado, não clicável");
+        }
     }
 
     #[test]
