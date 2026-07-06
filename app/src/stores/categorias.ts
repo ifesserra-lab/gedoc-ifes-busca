@@ -2,25 +2,33 @@
 // único; categoria "Outros" é reservada pelo domínio — ver
 // src-tauri/src/domain/categoria.rs).
 //
-// TODO(IPC): o backend ainda não expõe `listar_categorias`/`salvar_categorias`
-// (persistência em `config/categoria.json`, Constituição IV) — só o modelo
-// `Categoria` e os erros `CategoriaSemNome`/`NomeDuplicado` já existem em
-// Rust (TODO de US8). Enquanto o comando não existe, esta store mantém as
-// categorias em memória (sessão) com a MESMA validação que o backend fará,
-// para a tela já funcionar de ponta a ponta. Quando o IPC existir, trocar
-// `carregar`/`salvar`/`remover` para chamar `services/ipc.ts` (pedir ao
-// agente `tauri-mvc-expert` o comando — ver contracts/ui-components.md,
-// seção "Não-metas").
+// Persistência real via IPC (US8, backend em src-tauri/src/commands/categorias.rs):
+// `carregar()` chama `listar_categorias` no mount; `salvar()`/`remover()`
+// persistem a lista completa via `salvar_categorias` (o backend substitui o
+// arquivo inteiro — não há endpoint de "patch" de um item). A validação de
+// nome (R5) roda primeiro no cliente (`validarNome`), para feedback
+// instantâneo sem round-trip de IPC; o backend valida de novo (fonte de
+// verdade) e uma rejeição vinda de lá também aparece em `erro`/`mensagemDeErro`.
 
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
+
+import { type Categoria, listarCategorias, mensagemDeErro, salvarCategorias } from "@/services/ipc";
 
 export interface CategoriaItem {
   nome: string;
   descricao: string;
 }
 
-export type EstadoCategorias = "idle" | "vazio" | "pronto" | "erro";
+export type EstadoCategorias = "idle" | "carregando" | "vazio" | "pronto" | "erro";
+
+function paraItem(categoria: Categoria): CategoriaItem {
+  return { nome: categoria.nome, descricao: categoria.descricao ?? "" };
+}
+
+function paraCategoria(item: CategoriaItem): Categoria {
+  return { nome: item.nome.trim(), descricao: item.descricao.trim() || null };
+}
 
 export const useCategoriasStore = defineStore("categorias", () => {
   const itens = ref<CategoriaItem[]>([]);
@@ -30,8 +38,18 @@ export const useCategoriasStore = defineStore("categorias", () => {
 
   const vazio = computed(() => itens.value.length === 0);
 
-  function carregar(): void {
-    estado.value = vazio.value ? "vazio" : "pronto";
+  /** US8 — busca a lista persistida via IPC. */
+  async function carregar(): Promise<void> {
+    estado.value = "carregando";
+    erro.value = null;
+    try {
+      const categorias = await listarCategorias();
+      itens.value = categorias.map(paraItem);
+      estado.value = vazio.value ? "vazio" : "pronto";
+    } catch (motivo) {
+      estado.value = "erro";
+      erro.value = mensagemDeErro(motivo);
+    }
   }
 
   /** R5 — nome obrigatório e único (case-insensitive), espelha `AppError`. */
@@ -45,8 +63,22 @@ export const useCategoriasStore = defineStore("categorias", () => {
     return null;
   }
 
+  /** Persiste a lista completa via IPC; em sucesso, `itens` passa a refleti-la. */
+  async function persistir(novaLista: CategoriaItem[]): Promise<string | null> {
+    try {
+      await salvarCategorias(novaLista.map(paraCategoria));
+      itens.value = novaLista;
+      erro.value = null;
+      return null;
+    } catch (motivo) {
+      const mensagem = mensagemDeErro(motivo);
+      erro.value = mensagem;
+      return mensagem;
+    }
+  }
+
   /** Retorna `null` quando salvo com sucesso, ou a mensagem de erro. */
-  function salvar(categoria: CategoriaItem, indice: number | null): string | null {
+  async function salvar(categoria: CategoriaItem, indice: number | null): Promise<string | null> {
     const problema = validarNome(categoria.nome, indice);
     if (problema) {
       erro.value = problema;
@@ -54,22 +86,31 @@ export const useCategoriasStore = defineStore("categorias", () => {
     }
 
     const registro: CategoriaItem = { nome: categoria.nome.trim(), descricao: categoria.descricao.trim() };
+    const novaLista = [...itens.value];
     if (indice === null) {
-      itens.value.push(registro);
+      novaLista.push(registro);
     } else {
-      itens.value.splice(indice, 1, registro);
+      novaLista.splice(indice, 1, registro);
     }
 
-    erro.value = null;
+    const falha = await persistir(novaLista);
+    if (falha) return falha;
+
     mensagemSucesso.value = indice === null ? "Categoria criada." : "Categoria atualizada.";
     estado.value = "pronto";
     return null;
   }
 
-  function remover(indice: number): void {
-    itens.value.splice(indice, 1);
+  /** Retorna `null` quando removido com sucesso, ou a mensagem de erro. */
+  async function remover(indice: number): Promise<string | null> {
+    const novaLista = itens.value.filter((_, i) => i !== indice);
+
+    const falha = await persistir(novaLista);
+    if (falha) return falha;
+
     estado.value = vazio.value ? "vazio" : "pronto";
     mensagemSucesso.value = "Categoria removida.";
+    return null;
   }
 
   function limparMensagens(): void {

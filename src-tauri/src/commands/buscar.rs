@@ -24,6 +24,13 @@
 //! ausência de `config/categoria.json` também não aborta a busca: sem
 //! categorias, todo documento cai em "Outros" (R11).
 //!
+//! **US8**: as categorias são lidas do mesmo arquivo que o CRUD de
+//! categorias grava (`commands::categorias::caminho_categorias_app`,
+//! `<app_config_dir>/categoria.json`, semeado a partir do
+//! `config/categoria.json` empacotado na primeira execução) — não mais
+//! direto de `services::categorias::caminho_padrao()` — para que uma
+//! categoria criada/editada na tela apareça já na próxima busca.
+//!
 //! `executar_com_repo` é o núcleo síncrono e testável (recebe o
 //! `GedocRepository`, as `Categoria`s, o modo e — no modo `llm` — o
 //! `ChatIa`/os dois `CacheArquivo` por parâmetro; nenhum dublê de teste toca
@@ -197,10 +204,15 @@ pub fn executar_com_repo<R: GedocRepository>(
 }
 
 /// Fronteira async do comando: valida rápido (sem tocar rede/disco) e só
-/// então roda, num único `spawn_blocking`, toda a I/O bloqueante — ler
-/// `config/categoria.json`, resolver a chave de IA (se `modo == Llm`),
-/// buscar no portal, classificar e resumir (lendo/gravando os caches, se
-/// aplicável).
+/// então roda, num único `spawn_blocking`, toda a I/O bloqueante — ler as
+/// categorias, resolver a chave de IA (se `modo == Llm`), buscar no portal,
+/// classificar e resumir (lendo/gravando os caches, se aplicável).
+///
+/// `categorias_path` é o caminho do app_config resolvido pelo comando (US8,
+/// `commands::categorias::caminho_categorias_app`) — assim uma categoria
+/// criada/editada na tela já vale na próxima busca. `None` só em testes que
+/// chamam `executar` sem um `AppHandle` real, caso em que cai no
+/// `services::categorias::caminho_padrao()` legado.
 pub async fn executar(
     siape: &str,
     repositorio: Option<&str>,
@@ -208,6 +220,7 @@ pub async fn executar(
     cache_categoria_path: Option<PathBuf>,
     dir_documentos: PathBuf,
     cache_resumo_path: Option<PathBuf>,
+    categorias_path: Option<PathBuf>,
 ) -> Result<ResultadoView, AppError> {
     siape::validar(siape)?;
 
@@ -219,14 +232,16 @@ pub async fn executar(
 
         // R11: config ausente/malformada não derruba a busca — sem
         // categorias configuradas, todo documento cai em "Outros".
-        let categorias = categorias::carregar_categorias(&categorias::caminho_padrao())
-            .unwrap_or_else(|e| {
-                eprintln!(
-                    "[gedocs] aviso: não foi possível carregar as categorias ({e}); \
-                     documentos cairão em '{OUTROS}'."
-                );
-                Vec::new()
-            });
+        let caminho_categorias = categorias_path.unwrap_or_else(categorias::caminho_padrao);
+        let categorias =
+            categorias::resolver_com_semente(&caminho_categorias, &categorias::caminho_padrao())
+                .unwrap_or_else(|e| {
+                    eprintln!(
+                        "[gedocs] aviso: não foi possível carregar as categorias ({e}); \
+                 documentos cairão em '{OUTROS}'."
+                    );
+                    Vec::new()
+                });
 
         let mut cache_categoria = cache_categoria_path.map(CacheArquivo::carregar);
         let mut cache_resumo = cache_resumo_path.map(CacheArquivo::carregar);
@@ -281,6 +296,9 @@ pub async fn buscar_por_siape(
     // busca por não conseguir resolver este diretório opcional.
     let dir_documentos =
         documento::dir_documentos(&app).unwrap_or_else(|_| PathBuf::from(SUBPASTA_DOCUMENTOS));
+    // US8: mesmo arquivo que `commands::categorias` lê/grava, para que uma
+    // categoria criada/editada na tela apareça já na próxima busca.
+    let categorias_path = crate::commands::categorias::caminho_categorias_app(&app).ok();
 
     executar(
         &input.siape,
@@ -289,6 +307,7 @@ pub async fn buscar_por_siape(
         cache_categoria_path,
         dir_documentos,
         cache_resumo_path,
+        categorias_path,
     )
     .await
 }
@@ -375,6 +394,7 @@ mod tests {
             None,
             dir_documentos_neutro(),
             None,
+            None,
         )
         .await
         .unwrap_err();
@@ -389,6 +409,7 @@ mod tests {
             ModoClassificacao::Keyword,
             None,
             dir_documentos_neutro(),
+            None,
             None,
         )
         .await

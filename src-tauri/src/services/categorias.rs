@@ -1,16 +1,26 @@
-//! Carrega `config/categoria.json` (R5 — categorias vêm de configuração, não
-//! de código: Princípio IV). Formato:
+//! Carrega e persiste `categoria.json` (R5 — categorias vêm de configuração,
+//! não de código: Princípio IV). Formato:
 //! `{ "categorias": [ { "nome": ..., "descricao": ... }, ... ] }`.
+//!
+//! `carregar_categorias`/`caminho_padrao` (US5) leem o `config/categoria.json`
+//! versionado (a "semente"). `salvar_categorias` (US8) grava o arquivo que o
+//! CRUD da tela de categorias edita — em produção isso é
+//! `AppHandle.path().app_config_dir()/categoria.json`, nunca o arquivo
+//! versionado (decisão e resolução do caminho ficam em `commands::categorias`,
+//! que é quem conhece o `AppHandle`). `resolver_com_semente` é o elo entre os
+//! dois: na primeira execução, se o arquivo do app_config ainda não existe,
+//! copia a semente para lá; depois disso o arquivo do app_config passa a ser
+//! a única fonte de verdade (edições do usuário nunca são sobrescritas).
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::domain::categoria::Categoria;
 use crate::error::AppError;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct CategoriasArquivo {
     categorias: Vec<Categoria>,
 }
@@ -51,6 +61,122 @@ pub fn caminho_padrao() -> PathBuf {
         }
     }
     PathBuf::from("config/categoria.json")
+}
+
+/// R5: nome obrigatório (trim) e único (case-insensitive). Devolve a lista já
+/// normalizada (nomes com espaços nas pontas removidos); não grava nada — só
+/// valida, para `salvar_categorias` falhar rápido, antes de qualquer I/O.
+fn validar(categorias: &[Categoria]) -> Result<Vec<Categoria>, AppError> {
+    let mut vistos: Vec<String> = Vec::with_capacity(categorias.len());
+    let mut normalizadas = Vec::with_capacity(categorias.len());
+
+    for categoria in categorias {
+        let nome = categoria.nome.trim();
+        if nome.is_empty() {
+            return Err(AppError::CategoriaSemNome);
+        }
+        let chave = nome.to_lowercase();
+        if vistos.contains(&chave) {
+            return Err(AppError::NomeDuplicado {
+                nome: nome.to_string(),
+            });
+        }
+        vistos.push(chave);
+        normalizadas.push(Categoria::nova(
+            nome.to_string(),
+            categoria.descricao.clone(),
+        ));
+    }
+
+    Ok(normalizadas)
+}
+
+/// Persiste `categorias` em `caminho` (US8): valida R5 antes de tocar disco
+/// (nada é escrito se inválido) e grava de forma atômica — serializa para
+/// `caminho.part` e só então `rename` sobre o destino final, para nunca
+/// deixar um arquivo truncado/corrompido em caso de falha no meio da escrita.
+/// Devolve o total de categorias gravadas.
+pub fn salvar_categorias(caminho: &Path, categorias: &[Categoria]) -> Result<usize, AppError> {
+    let normalizadas = validar(categorias)?;
+
+    if let Some(pai) = caminho.parent() {
+        if !pai.as_os_str().is_empty() {
+            fs::create_dir_all(pai).map_err(|e| AppError::FalhaArquivo {
+                motivo: format!(
+                    "Não foi possível criar o diretório '{}': {e}",
+                    pai.display()
+                ),
+            })?;
+        }
+    }
+
+    let total = normalizadas.len();
+    let arquivo = CategoriasArquivo {
+        categorias: normalizadas,
+    };
+    let json = serde_json::to_string_pretty(&arquivo).map_err(|e| AppError::FalhaArquivo {
+        motivo: format!("Falha ao serializar categorias: {e}"),
+    })?;
+
+    let mut nome_temporario = caminho.as_os_str().to_owned();
+    nome_temporario.push(".part");
+    let temporario = PathBuf::from(nome_temporario);
+
+    fs::write(&temporario, json).map_err(|e| AppError::FalhaArquivo {
+        motivo: format!("Não foi possível gravar '{}': {e}", temporario.display()),
+    })?;
+    fs::rename(&temporario, caminho).map_err(|e| AppError::FalhaArquivo {
+        motivo: format!(
+            "Não foi possível concluir a gravação de '{}': {e}",
+            caminho.display()
+        ),
+    })?;
+
+    Ok(total)
+}
+
+/// Resolve a lista de categorias para leitura, semeando `caminho_app` a
+/// partir de `caminho_empacotado` (o `config/categoria.json` versionado)
+/// quando `caminho_app` ainda não existe — sem jamais sobrescrever um arquivo
+/// já presente (edição do usuário via `salvar_categorias`). Se nem o arquivo
+/// empacotado existir (ex.: ambiente sem `config/`), devolve uma lista vazia
+/// em vez de erro: tanto a tela de categorias (US8, estado "vazio") quanto a
+/// classificação de busca (US5, R11 — cai em "Outros") já lidam bem com isso.
+/// `commands::categorias::listar_categorias` e `commands::buscar::executar`
+/// chamam esta função com o MESMO `caminho_app`, para que uma categoria
+/// criada/editada na tela apareça na próxima busca.
+pub fn resolver_com_semente(
+    caminho_app: &Path,
+    caminho_empacotado: &Path,
+) -> Result<Vec<Categoria>, AppError> {
+    if !caminho_app.is_file() {
+        if caminho_empacotado.is_file() {
+            semear(caminho_empacotado, caminho_app)?;
+        } else {
+            return Ok(Vec::new());
+        }
+    }
+    carregar_categorias(caminho_app)
+}
+
+/// Copia `origem` para `destino`, criando o diretório pai se necessário.
+fn semear(origem: &Path, destino: &Path) -> Result<(), AppError> {
+    if let Some(pai) = destino.parent() {
+        if !pai.as_os_str().is_empty() {
+            fs::create_dir_all(pai).map_err(|e| AppError::FalhaArquivo {
+                motivo: format!("Não foi possível criar '{}': {e}", pai.display()),
+            })?;
+        }
+    }
+    fs::copy(origem, destino)
+        .map(|_| ())
+        .map_err(|e| AppError::FalhaArquivo {
+            motivo: format!(
+                "Não foi possível semear '{}' a partir de '{}': {e}",
+                destino.display(),
+                origem.display()
+            ),
+        })
 }
 
 #[cfg(test)]
@@ -112,5 +238,131 @@ mod tests {
         let caminho = escrever(dir.path(), "categoria.json", r#"{"categorias": []}"#);
         let erro = carregar_categorias(&caminho).unwrap_err();
         assert!(matches!(erro, AppError::FalhaArquivo { .. }));
+    }
+
+    // --- salvar_categorias ---------------------------------------------------- //
+
+    #[test]
+    fn salvar_e_recarregar_preserva_nome_e_descricao_round_trip() {
+        let dir = tempdir().expect("tempdir");
+        let caminho = dir.path().join("categoria.json");
+        let categorias = vec![
+            Categoria::nova("Progressão", Some("Progressão funcional.".to_string())),
+            Categoria::nova("Outros", None),
+        ];
+
+        let total = salvar_categorias(&caminho, &categorias).expect("deve salvar");
+        assert_eq!(total, 2);
+
+        let recarregadas = carregar_categorias(&caminho).expect("deve recarregar");
+        assert_eq!(recarregadas, categorias);
+    }
+
+    #[test]
+    fn salvar_rejeita_nome_vazio_ou_so_espacos_sem_gravar_nada() {
+        let dir = tempdir().expect("tempdir");
+        let caminho = dir.path().join("categoria.json");
+
+        let erro = salvar_categorias(&caminho, &[Categoria::nova("   ", None)]).unwrap_err();
+
+        assert!(matches!(erro, AppError::CategoriaSemNome));
+        assert!(!caminho.exists(), "nada deve ser gravado quando inválido");
+    }
+
+    #[test]
+    fn salvar_rejeita_nome_duplicado_case_insensitive() {
+        let dir = tempdir().expect("tempdir");
+        let caminho = dir.path().join("categoria.json");
+        let categorias = vec![
+            Categoria::nova("Férias", None),
+            Categoria::nova("férias", None),
+        ];
+
+        let erro = salvar_categorias(&caminho, &categorias).unwrap_err();
+
+        assert_eq!(
+            erro,
+            AppError::NomeDuplicado {
+                nome: "férias".to_string()
+            }
+        );
+        assert!(!caminho.exists(), "nada deve ser gravado quando inválido");
+    }
+
+    #[test]
+    fn salvar_nao_altera_arquivo_existente_quando_a_entrada_e_invalida() {
+        let dir = tempdir().expect("tempdir");
+        let caminho = escrever(
+            dir.path(),
+            "categoria.json",
+            r#"{"categorias":[{"nome":"Outros","descricao":null}]}"#,
+        );
+
+        let erro = salvar_categorias(&caminho, &[Categoria::nova("", None)]).unwrap_err();
+
+        assert!(matches!(erro, AppError::CategoriaSemNome));
+        let ainda = carregar_categorias(&caminho).expect("arquivo original intacto");
+        assert_eq!(ainda, vec![Categoria::nova("Outros", None)]);
+    }
+
+    #[test]
+    fn salvar_normaliza_espacos_nas_pontas_do_nome() {
+        let dir = tempdir().expect("tempdir");
+        let caminho = dir.path().join("categoria.json");
+
+        salvar_categorias(&caminho, &[Categoria::nova("  Diária  ", None)]).expect("deve salvar");
+
+        let recarregadas = carregar_categorias(&caminho).expect("deve recarregar");
+        assert_eq!(recarregadas[0].nome, "Diária");
+    }
+
+    // --- resolver_com_semente --------------------------------------------------- //
+
+    #[test]
+    fn resolver_com_semente_copia_do_empacotado_quando_o_arquivo_do_app_nao_existe() {
+        let dir = tempdir().expect("tempdir");
+        let empacotado = escrever(
+            dir.path(),
+            "empacotado.json",
+            r#"{"categorias":[{"nome":"Outros","descricao":null}]}"#,
+        );
+        let caminho_app = dir.path().join("app_config").join("categoria.json");
+
+        let categorias =
+            resolver_com_semente(&caminho_app, &empacotado).expect("deve semear e carregar");
+
+        assert_eq!(categorias, vec![Categoria::nova("Outros", None)]);
+        assert!(caminho_app.is_file(), "deve copiar para o caminho do app");
+    }
+
+    #[test]
+    fn resolver_com_semente_nao_sobrescreve_edicoes_ja_salvas_pelo_usuario() {
+        let dir = tempdir().expect("tempdir");
+        let empacotado = escrever(
+            dir.path(),
+            "empacotado.json",
+            r#"{"categorias":[{"nome":"Outros","descricao":null}]}"#,
+        );
+        let caminho_app = escrever(
+            dir.path(),
+            "categoria.json",
+            r#"{"categorias":[{"nome":"Personalizada","descricao":null}]}"#,
+        );
+
+        let categorias =
+            resolver_com_semente(&caminho_app, &empacotado).expect("deve carregar o existente");
+
+        assert_eq!(categorias, vec![Categoria::nova("Personalizada", None)]);
+    }
+
+    #[test]
+    fn resolver_com_semente_devolve_lista_vazia_quando_nada_existe() {
+        let dir = tempdir().expect("tempdir");
+        let caminho_app = dir.path().join("categoria.json");
+        let empacotado = dir.path().join("nao_existe.json");
+
+        let categorias = resolver_com_semente(&caminho_app, &empacotado).expect("não deve falhar");
+
+        assert!(categorias.is_empty());
     }
 }

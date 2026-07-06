@@ -113,3 +113,33 @@ export async function baixarDocumento(input: BaixarDocumentoInput): Promise<stri
 export async function abrirDocumento(input: AbrirDocumentoInput): Promise<void> {
   return invoke<void>("abrir_documento", { input });
 }
+
+export interface Categoria {
+  nome: string;
+  descricao?: string | null;
+}
+
+export interface SalvarCategoriasResposta {
+  ok: boolean;
+  total: number;
+}
+
+/**
+ * US8 — lista as categorias persistidas (`AppHandle.path().app_config_dir()/categoria.json`,
+ * semeado a partir do `config/categoria.json` empacotado na primeira
+ * execução — ver `commands::categorias` no backend). Lista vazia é um
+ * resultado válido (estado "vazio" da tela), não um erro.
+ */
+export async function listarCategorias(): Promise<Categoria[]> {
+  return invoke<Categoria[]>("listar_categorias");
+}
+
+/**
+ * US8 — substitui a lista completa de categorias. O backend valida R5 (nome
+ * obrigatório e único, case-insensitive) antes de gravar; nada é escrito se
+ * a validação falhar (ver `mensagemDeErro` para `CategoriaSemNome`/
+ * `NomeDuplicado`).
+ */
+export async function salvarCategorias(categorias: Categoria[]): Promise<SalvarCategoriasResposta> {
+  return invoke<SalvarCategoriasResposta>("salvar_categorias", { categorias });
+}
