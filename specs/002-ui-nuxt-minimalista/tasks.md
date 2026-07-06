@@ -54,11 +54,11 @@ Implementação delegada ao agente `ui-ux-designer`.
 **Meta**: loading/vazio/erro/sucesso dedicados; feedback imediato.
 **Teste independente**: forçar cada estado → componente correto; botão desabilita.
 
-- [ ] T018 [P] [US2] Teste: `app/tests/estados_busca.spec.ts` — store em loading/vazio/erro renderiza o componente certo
-- [ ] T019 [US2] Ligar estados da store `app/src/stores/busca.ts` aos componentes base na BuscaView
-- [ ] T020 [US2] Skeleton de lista em loading + botão Buscar desabilitado (BuscaView)
-- [ ] T021 [US2] EmptyState ("nenhum documento") e ErrorState ("tentar novamente") na BuscaView
-- [ ] T022 [P] [US2] Toast de sucesso ao salvar categoria (CategoriasView)
+- [x] T018 [P] [US2] Teste: `app/tests/estados_busca.spec.ts` — store em loading/vazio/erro renderiza o componente certo
+- [x] T019 [US2] Estados da store `busca.ts` ligados aos componentes base na BuscaView (já entregue em #13)
+- [x] T020 [US2] Skeleton de lista em loading (`LoadingState :linhas`) + botão Buscar desabilitado/`:loading` (BuscaView)
+- [x] T021 [US2] EmptyState ("nenhum documento") e ErrorState (com retry) na BuscaView
+- [x] T022 [P] [US2] Toast de sucesso (Nuxt UI `useToast`) ao criar/editar/remover categoria (CategoriasView)
 
 ## Phase 5: Polish — design minimalista/moderno & a11y
 
