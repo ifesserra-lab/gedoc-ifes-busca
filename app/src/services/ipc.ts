@@ -7,6 +7,12 @@ import { invoke } from "@tauri-apps/api/core";
 export interface BuscarPorSiapeInput {
   siape: string;
   repositorio?: "0" | "1" | "2";
+  /**
+   * Estratégia de classificação/resumo (US5/US6): `"llm"` também liga o
+   * resumo por documento (backend: `commands::buscar`). Ausente ou
+   * `"keyword"` (default) é grátis e instantâneo — sem tocar a API de IA.
+   */
+  modo?: "keyword" | "llm";
 }
 
 export interface DocView {

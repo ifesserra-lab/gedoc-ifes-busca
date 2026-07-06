@@ -26,6 +26,10 @@ thiserror = "1"
 regex = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "cookies", "rustls", "gzip", "form"] }
+# US6 — extração de texto de PDF em Rust puro, sem depender de um binário de
+# sistema (`pdftotext`, usado pelo script Python de referência). Só depende
+# de crates Rust (lopdf etc.); nenhuma lib nativa (ex.: freetype) é exigida.
+pdf-extract = "0.12"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

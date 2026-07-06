@@ -17,6 +17,12 @@ export const useBuscaStore = defineStore("busca", () => {
   const resultado = ref<ResultadoView | null>(null);
   /** Estado de UI (filtro por chip) — vive na store, a View só apresenta. */
   const categoriaSelecionada = ref<string | null>(null);
+  /**
+   * US6 — liga classificação+resumo via IA (`modo: "llm"`). Default `false`:
+   * o modo `keyword` é grátis e instantâneo; IA tem custo/latência (R9), por
+   * isso é opt-in explícito do usuário, nunca ligado sozinho numa busca.
+   */
+  const usarIa = ref(false);
 
   const siapeValido = computed(() => validarSiape(siape.value));
 
@@ -42,7 +48,10 @@ export const useBuscaStore = defineStore("busca", () => {
     erro.value = null;
     categoriaSelecionada.value = null;
     try {
-      resultado.value = await buscarPorSiape({ siape: siape.value });
+      resultado.value = await buscarPorSiape({
+        siape: siape.value,
+        modo: usarIa.value ? "llm" : "keyword",
+      });
       estado.value = "resultado";
     } catch (motivo) {
       estado.value = "erro";
@@ -71,6 +80,7 @@ export const useBuscaStore = defineStore("busca", () => {
     vazio,
     categoriaSelecionada,
     gruposFiltrados,
+    usarIa,
     buscar,
     selecionarCategoria,
     reiniciar,

@@ -22,6 +22,14 @@ use crate::ports::http::HttpPort;
 /// apontar para um host arbitrário.
 const HOST_CONFIAVEL: &str = "gedoc.ifes.edu.br";
 
+/// Subpasta, dentro do diretório de dados do app, onde os PDFs baixados
+/// ficam organizados por SIAPE (`<app_data_dir>/documentos/<siape>/`) — US4.
+/// Compartilhada por `commands::documento` (baixar/abrir) e
+/// `commands::buscar`/`services::resumidor` (US6: ler o texto de um PDF já
+/// baixado para resumir), para as duas pontas sempre concordarem sobre onde
+/// os arquivos vivem.
+pub const SUBPASTA_DOCUMENTOS: &str = "documentos";
+
 /// Assinatura de arquivo PDF — todo PDF válido começa com `%PDF`.
 const ASSINATURA_PDF: &[u8] = b"%PDF";
 

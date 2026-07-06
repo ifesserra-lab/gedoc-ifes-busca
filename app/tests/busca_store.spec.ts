@@ -123,6 +123,32 @@ describe("useBuscaStore — filtro por categoria e estado vazio", () => {
     expect(store.vazio).toBe(false);
   });
 
+  it("usarIa começa desligado e busca envia modo 'keyword' por padrão (US6)", async () => {
+    const store = useBuscaStore();
+    const espiao = vi
+      .spyOn(ipc, "buscarPorSiape")
+      .mockResolvedValue(mockResultado({ total: 0, categorias: [] }));
+    store.siape = "1998547";
+
+    expect(store.usarIa).toBe(false);
+    await store.buscar();
+
+    expect(espiao).toHaveBeenCalledWith({ siape: "1998547", modo: "keyword" });
+  });
+
+  it("com usarIa ligado, busca envia modo 'llm' (US6)", async () => {
+    const store = useBuscaStore();
+    const espiao = vi
+      .spyOn(ipc, "buscarPorSiape")
+      .mockResolvedValue(mockResultado({ total: 0, categorias: [] }));
+    store.siape = "1998547";
+    store.usarIa = true;
+
+    await store.buscar();
+
+    expect(espiao).toHaveBeenCalledWith({ siape: "1998547", modo: "llm" });
+  });
+
   it("reiniciar limpa a categoria selecionada junto com o restante do estado", async () => {
     const store = useBuscaStore();
     vi.spyOn(ipc, "buscarPorSiape").mockResolvedValue(

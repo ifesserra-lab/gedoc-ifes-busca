@@ -29,8 +29,8 @@ forma independente. Backend Rust em `src-tauri/`, frontend Vue em `app/`.
 
 - [x] T006 Modelar entidades de domínio em `src-tauri/src/domain/` (Servidor/siape, Documento, Categoria, texto, nome_arquivo)
 - [x] T007 [P] Definir `AppError` (thiserror, serializável) em `src-tauri/src/error.rs`
-- [~] T008 [P] Traits/ports em `src-tauri/src/ports/` — GedocRepository, Classificador, HttpPort, `ports::ia::ChatIa` (US5) ✅; Resumidor pendente (US6)
-- [x] T009 `CacheArquivo` genérico por link em `src-tauri/src/services/cache.rs` (R6) — feito em US5 (usado pela classificação `llm`); reutilizável tal como está por US6 (resumo), com outro arquivo
+- [x] T008 [P] Traits/ports em `src-tauri/src/ports/` — GedocRepository, Classificador, HttpPort, `ports::ia::ChatIa` (US5) ✅; US6: `ChatIa` cresceu um método `resumir` (default delega para `chat`, compatível com os dublês já existentes) em vez de um trait novo — o próprio port já cobria a necessidade
+- [x] T009 `CacheArquivo` genérico por link em `src-tauri/src/services/cache.rs` (R6) — feito em US5 (usado pela classificação `llm`); reutilizado tal como estava por US6 (resumo), em `cache/resumo.json` — arquivo separado do de classificação
 - [x] T010 Registrar `tauri::Builder`, plugins e `invoke_handler` em `src-tauri/src/lib.rs`
 - [x] T011 [P] Camada de serviços IPC no front: `app/src/services/ipc.ts` (wrappers tipados de `invoke`)
 
@@ -99,11 +99,12 @@ forma independente. Backend Rust em `src-tauri/`, frontend Vue em `app/`.
 **Meta**: resumo fiel; falha isolada não derruba lote.
 **Teste independente**: resumo deriva do texto; documento ilegível usa trecho.
 
-- [ ] T037 [P] [US6] Teste: resumo usa texto e não inventa; fallback ao trecho em `src-tauri/tests/resumir.rs` (R1)
-- [ ] T038 [P] [US6] Teste: falha em 1 doc não aborta lote em `src-tauri/tests/resumir_lote.rs` (R9)
-- [ ] T039 [US6] Extração de texto do PDF em `src-tauri/src/services/texto_pdf.rs`
-- [ ] T040 [US6] `Resumidor` (IA) + cache por link em `src-tauri/src/services/resumidor.rs` (R1,R6)
-- [ ] T041 [US6] Completar `buscar_por_siape` retornando categorias+resumos (contracts/ipc-commands.md)
+- [x] T037 [P] [US6] Teste: resumo usa texto e não inventa; fallback ao trecho em `src-tauri/tests/resumir.rs` (R1) — dublê de `ChatIa` captura o texto recebido e prova que é literalmente o trecho/texto do PDF do documento (nunca outro texto); cobre também o marcador `(sem texto)` sem trecho/PDF
+- [x] T038 [P] [US6] Teste: falha em 1 doc não aborta lote em `src-tauri/tests/resumir_lote.rs` (R11 — a falha ao resumir não derruba o lote; cobre também o cache por link, R6)
+- [x] T039 [US6] Extração de texto do PDF em `src-tauri/src/services/texto_pdf.rs` — via crate `pdf-extract` 0.12 (puro Rust, `extract_text_from_mem(&[u8]) -> Result<String, OutputError>`; sem libs nativas — ver decisão abaixo). Bytes inválidos/PDF sem texto → `None` (nunca panica); trunca a `MAX_CHARS=6000`. Testado com fixture mínima em `src-tauri/tests/fixtures/documento_teste.pdf` (conteúdo fictício "Documento de teste. Determina X.") e com bytes inválidos
+- [x] T040 [US6] `services::resumidor::resumir_lote` (IA) + cache por link em `src-tauri/src/services/resumidor.rs` (R1,R6,R11) — espelha `resumir_mistral.py` (`SISTEMA`, `resolver_resumo`); texto-fonte = PDF extraído (se `doc.arquivo` existir em `dir_documentos/<siape>/`, via `downloader::caminho_seguro`, R7) senão `doc.trecho`; sem nenhum dos dois, resumo vira o marcador `"(sem texto)"` sem chamar a IA; `ports::ia::ChatIa` ganhou o método `resumir` (300 tokens, temperatura 0.2, sem forçar JSON — diferente da classificação) para reusar o mesmo `MistralClient`/throttle/retry (R9)
+- [x] T041 [US6] `commands::buscar`: no modo `llm`, após classificar, chama `resumir_lote` e seta `doc.resumo`; cache de resumo em `cache/resumo.json` (arquivo separado do de classificação, `cache/classificacao.json` — decisão: 1 arquivo global por link, não por SIAPE, para reaproveitar o resumo de um documento citado em buscas de SIAPEs diferentes); modo `keyword` não resume (`resumo: None`). Corrigido também um bug pré-existente: `DocView::from` descartava `doc.arquivo`/`doc.resumo` (hard-coded `None`) — agora repassa os valores reais, senão o resumo nunca chegaria à View
+- [x] T041+ [US6] Frontend (não listado nas tasks originais, mas necessário para US6 ser utilizável): toggle "Classificar e resumir com IA" (off por padrão, acessível — `USwitch`/`<label>`, alvo clicável ≥ 40px) em `app/src/views/BuscaView.vue`, ligado a `store.usarIa` (`app/src/stores/busca.ts`), que envia `modo: usarIa ? "llm" : "keyword"` a `buscarPorSiape`; `BuscarPorSiapeInput.modo` acrescentado em `app/src/services/ipc.ts`. Sem essa UI, o backend já classificava/resumia no modo `llm`, mas nada no frontend pedia esse modo — US6 ficava inacessível ao usuário. `DocItem.vue` já renderizava `doc.resumo` quando presente (herdado de fase anterior), sem alterações necessárias
 
 ## Phase 9: US7 — Relatório e ZIP (P3)
 
