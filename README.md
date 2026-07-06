@@ -11,6 +11,30 @@ interface única.
 > (`jsessionid`) e requisições AJAX parciais; os ids do formulário são
 > descobertos dinamicamente em runtime (resistem a redeploy do servidor).
 
+## Download / Instaladores
+
+Baixe o instalador pronto na
+[página de releases](https://github.com/ifesserra-lab/gedoc-ifes-busca/releases/latest)
+(sempre a versão mais recente) ou direto por sistema operacional (v0.1.0):
+
+| Sistema | Arquivo | Download |
+| --- | --- | --- |
+| **macOS** (Apple Silicon) | `.dmg` | [gedocs_0.1.0_aarch64.dmg](https://github.com/ifesserra-lab/gedoc-ifes-busca/releases/download/v0.1.0/gedocs_0.1.0_aarch64.dmg) |
+| macOS (app avulso) | `.app.tar.gz` | [gedocs_aarch64.app.tar.gz](https://github.com/ifesserra-lab/gedoc-ifes-busca/releases/download/v0.1.0/gedocs_aarch64.app.tar.gz) |
+| **Windows** (x64) | `.exe` (NSIS) | [gedocs_0.1.0_x64-setup.exe](https://github.com/ifesserra-lab/gedoc-ifes-busca/releases/download/v0.1.0/gedocs_0.1.0_x64-setup.exe) |
+| Windows (x64) | `.msi` | [gedocs_0.1.0_x64_en-US.msi](https://github.com/ifesserra-lab/gedoc-ifes-busca/releases/download/v0.1.0/gedocs_0.1.0_x64_en-US.msi) |
+| **Linux** | `.AppImage` | [gedocs_0.1.0_amd64.AppImage](https://github.com/ifesserra-lab/gedoc-ifes-busca/releases/download/v0.1.0/gedocs_0.1.0_amd64.AppImage) |
+| Linux (Debian/Ubuntu) | `.deb` | [gedocs_0.1.0_amd64.deb](https://github.com/ifesserra-lab/gedoc-ifes-busca/releases/download/v0.1.0/gedocs_0.1.0_amd64.deb) |
+| Linux (Fedora/RHEL) | `.rpm` | [gedocs-0.1.0-1.x86_64.rpm](https://github.com/ifesserra-lab/gedoc-ifes-busca/releases/download/v0.1.0/gedocs-0.1.0-1.x86_64.rpm) |
+
+> macOS: build para **Apple Silicon** (aarch64). No primeiro uso, se o Gatekeeper
+> bloquear, abra em **Ajustes do Sistema → Privacidade e Segurança → Abrir mesmo
+> assim**. Os instaladores são gerados automaticamente pela
+> [CI de release](.github/workflows/release.yml) a cada tag `v*`.
+>
+> O repositório é **privado**: os links de download exigem estar autenticado no
+> GitHub com acesso ao repositório.
+
 ## Funcionalidades
 
 - **Buscar por SIAPE** — coleta todas as páginas, sem duplicatas.
