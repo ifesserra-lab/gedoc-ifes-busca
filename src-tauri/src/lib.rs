@@ -23,6 +23,8 @@ pub fn run() {
             commands::documento::abrir_documento,
             commands::categorias::listar_categorias,
             commands::categorias::salvar_categorias,
+            commands::exportar::gerar_relatorio,
+            commands::exportar::baixar_zip,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar a aplicação Tauri");
