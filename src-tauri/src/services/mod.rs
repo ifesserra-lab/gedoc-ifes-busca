@@ -7,3 +7,5 @@ pub mod downloader;
 pub mod filtro;
 pub mod gedoc_parse;
 pub mod gedoc_repository;
+pub mod resumidor;
+pub mod texto_pdf;
