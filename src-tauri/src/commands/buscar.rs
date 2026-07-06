@@ -80,7 +80,12 @@ pub struct BuscarPorSiapeInput {
     pub modo: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+// US7: `Deserialize` também é necessário aqui (não só `Serialize`) porque
+// `commands::exportar::gerar_relatorio` recebe de volta, como argumento de
+// IPC, a mesma `ResultadoView` que `buscar_por_siape` devolveu à View — o
+// relatório é gerado a partir do que já está na tela (R1), sem refazer a
+// busca.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DocView {
     pub titulo: String,
     pub data: Option<String>,
@@ -89,14 +94,14 @@ pub struct DocView {
     pub resumo: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CategoriaGrupo {
     pub categoria: String,
     pub qtd: usize,
     pub itens: Vec<DocView>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ResultadoView {
     pub termo: String,
     pub total: u32,

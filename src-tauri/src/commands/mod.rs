@@ -5,3 +5,4 @@
 pub mod buscar;
 pub mod categorias;
 pub mod documento;
+pub mod exportar;
