@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// View (US1) — CRUD de categorias com UTable + UModal + UForm. Nenhuma
-// regra de negócio aqui: validação (R5) e persistência (stub, ver
+// View (US8) — CRUD de categorias com UTable + UModal + UForm. Nenhuma
+// regra de negócio aqui: validação (R5) e persistência via IPC (ver
 // stores/categorias.ts) vivem na store; a View só apresenta e coordena
 // abertura/fechamento de modais (estado de UI local, não é regra de negócio).
 import { onMounted, reactive, ref } from "vue";
@@ -8,6 +8,7 @@ import type { ColumnDef } from "@tanstack/vue-table";
 
 import EmptyState from "@/components/base/EmptyState.vue";
 import ErrorState from "@/components/base/ErrorState.vue";
+import LoadingState from "@/components/base/LoadingState.vue";
 import { type CategoriaItem, useCategoriasStore } from "@/stores/categorias";
 
 const store = useCategoriasStore();
@@ -53,8 +54,8 @@ function validarFormulario(state: Partial<CategoriaItem>): Array<{ name: string;
   return problema ? [{ name: "nome", message: problema }] : [];
 }
 
-function aoSubmeter(evento: { data: CategoriaItem }): void {
-  const erro = store.salvar(evento.data, indiceEditando.value);
+async function aoSubmeter(evento: { data: CategoriaItem }): Promise<void> {
+  const erro = await store.salvar(evento.data, indiceEditando.value);
   if (!erro) fecharModal();
 }
 
@@ -63,6 +64,7 @@ const indiceRemovendo = ref<number | null>(null);
 const confirmarRemocaoAberto = ref(false);
 
 function pedirRemocao(indice: number): void {
+  store.limparMensagens();
   indiceRemovendo.value = indice;
   confirmarRemocaoAberto.value = true;
 }
@@ -72,9 +74,12 @@ function cancelarRemocao(): void {
   indiceRemovendo.value = null;
 }
 
-function confirmarRemocao(): void {
-  if (indiceRemovendo.value !== null) store.remover(indiceRemovendo.value);
-  cancelarRemocao();
+async function confirmarRemocao(): Promise<void> {
+  if (indiceRemovendo.value === null) return;
+  const erro = await store.remover(indiceRemovendo.value);
+  // Fecha só em sucesso; em falha, mantém o diálogo aberto exibindo `store.erro`
+  // (feedback imediato — Princípio XII), permitindo nova tentativa.
+  if (!erro) cancelarRemocao();
 }
 </script>
 
@@ -94,7 +99,13 @@ function confirmarRemocao(): void {
       {{ store.mensagemSucesso }}
     </p>
 
-    <ErrorState v-if="store.estado === 'erro' && store.erro" :mensagem="store.erro" :permite-retry="false" />
+    <LoadingState v-if="store.estado === 'carregando'" label="Carregando categorias..." :linhas="3" />
+
+    <ErrorState
+      v-else-if="store.estado === 'erro' && store.erro"
+      :mensagem="store.erro"
+      @retry="store.carregar()"
+    />
 
     <EmptyState
       v-else-if="store.vazio"
@@ -151,6 +162,8 @@ function confirmarRemocao(): void {
             />
           </UFormField>
 
+          <p v-if="store.erro" class="categoria-form__erro" role="alert">{{ store.erro }}</p>
+
           <div class="categoria-form__acoes">
             <UButton type="button" color="neutral" variant="ghost" class="alvo-minimo" @click="fecharModal">Cancelar</UButton>
             <UButton type="submit" class="alvo-minimo">{{ indiceEditando === null ? "Criar" : "Salvar" }}</UButton>
@@ -165,6 +178,7 @@ function confirmarRemocao(): void {
           Remover a categoria "{{ indiceRemovendo !== null ? store.itens[indiceRemovendo]?.nome : "" }}"? Esta ação
           não pode ser desfeita.
         </p>
+        <p v-if="store.erro" class="categoria-form__erro" role="alert">{{ store.erro }}</p>
       </template>
       <template #footer>
         <UButton color="neutral" variant="ghost" class="alvo-minimo" @click="cancelarRemocao">Cancelar</UButton>
@@ -232,6 +246,12 @@ function confirmarRemocao(): void {
 
 .categoria-form__campo {
   width: 100%;
+}
+
+.categoria-form__erro {
+  font-size: var(--text-14);
+  color: var(--danger);
+  margin: 0;
 }
 
 .categoria-form__acoes {

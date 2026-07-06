@@ -3,4 +3,5 @@
 //! AppError>` (serializável). Ver `contracts/ipc-commands.md`.
 
 pub mod buscar;
+pub mod categorias;
 pub mod documento;
