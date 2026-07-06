@@ -64,6 +64,7 @@ const indiceRemovendo = ref<number | null>(null);
 const confirmarRemocaoAberto = ref(false);
 
 function pedirRemocao(indice: number): void {
+  store.limparMensagens();
   indiceRemovendo.value = indice;
   confirmarRemocaoAberto.value = true;
 }
@@ -74,8 +75,11 @@ function cancelarRemocao(): void {
 }
 
 async function confirmarRemocao(): Promise<void> {
-  if (indiceRemovendo.value !== null) await store.remover(indiceRemovendo.value);
-  cancelarRemocao();
+  if (indiceRemovendo.value === null) return;
+  const erro = await store.remover(indiceRemovendo.value);
+  // Fecha só em sucesso; em falha, mantém o diálogo aberto exibindo `store.erro`
+  // (feedback imediato — Princípio XII), permitindo nova tentativa.
+  if (!erro) cancelarRemocao();
 }
 </script>
 
@@ -174,6 +178,7 @@ async function confirmarRemocao(): Promise<void> {
           Remover a categoria "{{ indiceRemovendo !== null ? store.itens[indiceRemovendo]?.nome : "" }}"? Esta ação
           não pode ser desfeita.
         </p>
+        <p v-if="store.erro" class="categoria-form__erro" role="alert">{{ store.erro }}</p>
       </template>
       <template #footer>
         <UButton color="neutral" variant="ghost" class="alvo-minimo" @click="cancelarRemocao">Cancelar</UButton>

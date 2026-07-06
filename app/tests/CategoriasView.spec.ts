@@ -90,6 +90,23 @@ describe("categoriasStore — validação R5 e persistência via IPC", () => {
     expect(store.mensagemSucesso).toBe("Categoria removida.");
   });
 
+  it("falha ao remover devolve mensagem e preserva a lista (View mantém o diálogo)", async () => {
+    vi.spyOn(ipc, "salvarCategorias").mockResolvedValueOnce({ ok: true, total: 1 });
+    const store = useCategoriasStore();
+    await store.salvar({ nome: "Portaria", descricao: "" }, null);
+    // Próxima persistência (a da remoção) falha no backend.
+    vi.spyOn(ipc, "salvarCategorias").mockRejectedValue({
+      tipo: "FalhaArquivo",
+      mensagem: { motivo: "disco cheio" },
+    });
+
+    const erro = await store.remover(0);
+
+    expect(erro).not.toBeNull(); // o retorno não-nulo faz a View manter o diálogo aberto
+    expect(store.erro).toBe(erro);
+    expect(store.itens).toHaveLength(1); // lista preservada — remoção não "sumiu" silenciosamente
+  });
+
   it("carrega as categorias existentes do backend", async () => {
     vi.spyOn(ipc, "listarCategorias").mockResolvedValue([
       { nome: "Progressão", descricao: "Progressão funcional." },

@@ -66,6 +66,12 @@ pub fn caminho_padrao() -> PathBuf {
 /// R5: nome obrigatório (trim) e único (case-insensitive). Devolve a lista já
 /// normalizada (nomes com espaços nas pontas removidos); não grava nada — só
 /// valida, para `salvar_categorias` falhar rápido, antes de qualquer I/O.
+///
+/// Unicidade é só case-insensitive, sem dobra de acentuação (R5 literal): logo
+/// "Férias" e "ferias" são categorias distintas. Diverge do casamento
+/// accent-insensitive de `services::classificador` — se o usuário criar as duas,
+/// a classificação por nome fica ambígua. Aceito por ora (exige o usuário
+/// cadastrar deliberadamente as duas); alinhar caso vire requisito.
 fn validar(categorias: &[Categoria]) -> Result<Vec<Categoria>, AppError> {
     let mut vistos: Vec<String> = Vec::with_capacity(categorias.len());
     let mut normalizadas = Vec::with_capacity(categorias.len());
@@ -160,7 +166,14 @@ pub fn resolver_com_semente(
 }
 
 /// Copia `origem` para `destino`, criando o diretório pai se necessário.
+/// Usa `create_new` (O_EXCL — checagem de existência + criação atômicas): se
+/// `destino` já existir (uma execução concorrente semeou, ou um
+/// `salvar_categorias` gravou a edição do usuário entre o `is_file()` do
+/// chamador e este ponto), retorna `Ok` sem escrever — NUNCA sobrescreve o
+/// arquivo, fechando a corrida TOCTOU que poderia apagar a edição do usuário.
 fn semear(origem: &Path, destino: &Path) -> Result<(), AppError> {
+    use std::io::Write;
+
     if let Some(pai) = destino.parent() {
         if !pai.as_os_str().is_empty() {
             fs::create_dir_all(pai).map_err(|e| AppError::FalhaArquivo {
@@ -168,15 +181,24 @@ fn semear(origem: &Path, destino: &Path) -> Result<(), AppError> {
             })?;
         }
     }
-    fs::copy(origem, destino)
-        .map(|_| ())
-        .map_err(|e| AppError::FalhaArquivo {
-            motivo: format!(
-                "Não foi possível semear '{}' a partir de '{}': {e}",
-                destino.display(),
-                origem.display()
-            ),
-        })
+
+    let conteudo = fs::read(origem).map_err(|e| AppError::FalhaArquivo {
+        motivo: format!("Não foi possível ler a semente '{}': {e}", origem.display()),
+    })?;
+
+    let falha = |e: std::io::Error| AppError::FalhaArquivo {
+        motivo: format!("Não foi possível semear '{}': {e}", destino.display()),
+    };
+    match fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(destino)
+    {
+        Ok(mut f) => f.write_all(&conteudo).map_err(falha),
+        // Alguém criou o arquivo nesse meio-tempo — respeita o que está lá.
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+        Err(e) => Err(falha(e)),
+    }
 }
 
 #[cfg(test)]
@@ -353,6 +375,28 @@ mod tests {
             resolver_com_semente(&caminho_app, &empacotado).expect("deve carregar o existente");
 
         assert_eq!(categorias, vec![Categoria::nova("Personalizada", None)]);
+    }
+
+    #[test]
+    fn semear_nao_sobrescreve_destino_que_ja_existe_create_new() {
+        // Fecha a corrida TOCTOU: mesmo chamando semear diretamente sobre um
+        // destino já existente (edição do usuário), o conteúdo é preservado.
+        let dir = tempdir().expect("tempdir");
+        let origem = escrever(
+            dir.path(),
+            "seed.json",
+            r#"{"categorias":[{"nome":"Semente","descricao":null}]}"#,
+        );
+        let destino = escrever(
+            dir.path(),
+            "app.json",
+            r#"{"categorias":[{"nome":"Usuário","descricao":null}]}"#,
+        );
+
+        semear(&origem, &destino).expect("não deve falhar nem sobrescrever");
+
+        let cats = carregar_categorias(&destino).expect("carrega o destino");
+        assert_eq!(cats, vec![Categoria::nova("Usuário", None)]);
     }
 
     #[test]
