@@ -47,6 +47,15 @@ const store = useBuscaStore();
         </UButton>
       </form>
       <p class="busca__hint">Informe de 5 a 8 dígitos numéricos.</p>
+
+      <USwitch
+        id="usar-ia"
+        v-model="store.usarIa"
+        class="busca__toggle-ia alvo-minimo"
+        :disabled="store.estado === 'loading'"
+        label="Classificar e resumir com IA"
+        description="Mais lento: envia cada documento a um serviço de IA para categorizar e gerar um resumo curto."
+      />
     </header>
 
     <div class="busca__conteudo">
@@ -174,6 +183,11 @@ const store = useBuscaStore();
   font-size: var(--text-13);
   color: var(--muted);
   margin: var(--sp-2) 0 0;
+}
+
+.busca__toggle-ia {
+  align-items: flex-start;
+  margin-top: var(--sp-4);
 }
 
 .busca__conteudo {

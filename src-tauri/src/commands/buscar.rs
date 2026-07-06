@@ -1,33 +1,39 @@
 //! Comando `buscar_por_siape` — ver `contracts/ipc-commands.md`.
 //!
 //! Cobre US1 (coleta completa via `GedocRepository`), US2 (filtro por SIAPE,
-//! R2), US3 (consumo pela View) e US5 (classificação por categoria, R4/R5/
-//! R6/R9/R11). Documentos válidos são classificados antes de agrupar; o
-//! resumo (US6) ainda não existe neste MVP e `tem_pdf` é sempre `false`.
+//! R2), US3 (consumo pela View), US5 (classificação por categoria, R4/R5/
+//! R6/R9/R11) e US6 (resumo por documento, R1/R6/R9/R11). Documentos válidos
+//! são classificados e, no modo `llm`, resumidos antes de agrupar; `tem_pdf`
+//! é sempre `false` (feature de US7, ainda não implementada).
 //!
-//! **Decisão de design (US5)**: o modo de classificação default é
-//! `ModoClassificacao::Keyword` — grátis, instantâneo, sem tocar API nem
-//! exigir chave. `buscar_por_siape` NÃO liga o modo `llm` sozinho em toda
-//! busca (custo/latência de chamadas de IA); ele só é usado quando o input
-//! pede explicitamente `modo: "llm"` **e** uma chave de IA está configurada
-//! (env `MISTRAL_API_KEY`/`MISTRAL_KEY` ou `config/.env`) — sem chave, o
-//! pedido de `llm` degrada silenciosamente para `keyword` (R11: a busca
-//! nunca falha por causa da classificação). No modo `llm`, o cache por link
-//! (R6) e o throttle embutido no cliente Mistral (R9) evitam reclassificar e
-//! evitam rate limit; a falha ao classificar 1 documento cai no
-//! classificador `keyword` só para aquele documento (R11), sem abortar o
-//! lote. Falha/ausência de `config/categoria.json` também não aborta a
-//! busca: sem categorias, todo documento cai em "Outros" (R11).
+//! **Decisão de design (US5/US6)**: o modo default é `ModoClassificacao::
+//! Keyword` — grátis, instantâneo, sem tocar API nem exigir chave.
+//! `buscar_por_siape` NÃO liga o modo `llm` sozinho em toda busca (custo/
+//! latência de chamadas de IA); ele só é usado quando o input pede
+//! explicitamente `modo: "llm"` **e** uma chave de IA está configurada (env
+//! `MISTRAL_API_KEY`/`MISTRAL_KEY` ou `config/.env`) — sem chave, o pedido
+//! de `llm` degrada silenciosamente para `keyword` (R11: a busca nunca falha
+//! por causa da classificação ou do resumo). No modo `llm`, cada
+//! classificação e cada resumo passam por um cache por link (R6, arquivos
+//! separados — `cache/classificacao.json` e `cache/resumo.json`) e o
+//! throttle embutido no cliente Mistral (R9) evita rate limit; a falha ao
+//! classificar 1 documento cai no classificador `keyword` só para aquele
+//! documento (R11); a falha ao resumir 1 documento deixa `resumo: None`
+//! só para aquele documento, sem abortar o lote — ao contrário da
+//! classificação, não há "resumo por palavra-chave" de fallback. Falha/
+//! ausência de `config/categoria.json` também não aborta a busca: sem
+//! categorias, todo documento cai em "Outros" (R11).
 //!
 //! `executar_com_repo` é o núcleo síncrono e testável (recebe o
 //! `GedocRepository`, as `Categoria`s, o modo e — no modo `llm` — o
-//! `ChatIa`/`CacheArquivo` por parâmetro; nenhum dublê de teste toca rede ou
-//! disco reais — Princípio VII). `executar`/`buscar_por_siape` são a
+//! `ChatIa`/os dois `CacheArquivo` por parâmetro; nenhum dublê de teste toca
+//! rede ou disco reais — Princípio VII). `executar`/`buscar_por_siape` são a
 //! fronteira async/IPC: toda a I/O bloqueante (ler `config/categoria.json`,
-//! resolver a chave de IA, buscar no portal, ler/gravar o cache) roda dentro
-//! de um único `tokio::task::spawn_blocking` para nunca travar o runtime.
+//! resolver a chave de IA, buscar no portal, ler/gravar os caches, ler um
+//! PDF já baixado para resumir) roda dentro de um único
+//! `tokio::task::spawn_blocking` para nunca travar o runtime.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
@@ -41,14 +47,22 @@ use crate::ports::http::ReqwestHttp;
 use crate::ports::ia::{resolver_api_key, ChatIa, MistralClient};
 use crate::services::cache::CacheArquivo;
 use crate::services::classificador::{classificar_lote, ModoClassificacao};
+use crate::services::downloader::SUBPASTA_DOCUMENTOS;
 use crate::services::gedoc_repository::GedocRepositoryHttp;
-use crate::services::{categorias, filtro};
+use crate::services::{categorias, filtro, resumidor};
+
+use super::documento;
 
 const SEM_CATEGORIA: &str = "Sem categoria";
-/// Cache de classificação (US5), dentro de `app_data_dir` — fora do VCS
-/// (Princípio II/LGPD); só guarda link→categoria, nunca título/trecho/SIAPE.
+/// Caches de IA (US5/US6), dentro de `app_data_dir` — fora do VCS (Princípio
+/// II/LGPD). `classificacao.json` só guarda link→categoria; `resumo.json` só
+/// guarda link→resumo. Nunca título/trecho/SIAPE isolados. Um único arquivo
+/// global por tipo (chave = link, já globalmente único) — não por SIAPE:
+/// evita recomputar o resumo/categoria de um documento que aparece em buscas
+/// de SIAPEs diferentes (ex.: uma portaria que cita várias matrículas).
 const SUBPASTA_CACHE: &str = "cache";
 const ARQUIVO_CACHE_CLASSIFICACAO: &str = "classificacao.json";
+const ARQUIVO_CACHE_RESUMO: &str = "resumo.json";
 
 #[derive(Debug, Deserialize)]
 pub struct BuscarPorSiapeInput {
@@ -89,8 +103,8 @@ impl From<Documento> for DocView {
             titulo: doc.titulo,
             data: doc.data,
             link: doc.link,
-            arquivo: None, // download ainda não existe neste MVP (US4/US7)
-            resumo: None,  // resumo ainda não existe neste MVP (US6)
+            arquivo: doc.arquivo, // preenchido só se o download (US4) já rodou
+            resumo: doc.resumo,   // preenchido pelo resumo (US6) no modo `llm`
         }
     }
 }
@@ -143,10 +157,10 @@ pub fn montar_resultado(
 
 /// Núcleo síncrono e testável do comando: valida o SIAPE (R10), busca todas
 /// as páginas via `repo` (US1/FR-001), filtra por SIAPE (US2/R2), classifica
-/// cada documento válido (US5) e agrupa o resultado (US3) na ordem de
-/// `categorias`. Recebe repositório/categorias/estratégia de IA por
-/// parâmetro — nenhum dublê de teste precisa tocar rede ou disco reais
-/// (Princípio VII).
+/// (US5) e — no modo `llm` — resume (US6) cada documento válido, e agrupa o
+/// resultado (US3) na ordem de `categorias`. Recebe repositório/categorias/
+/// estratégia de IA/diretório de PDFs por parâmetro — nenhum dublê de teste
+/// precisa tocar rede ou disco reais (Princípio VII).
 #[allow(clippy::too_many_arguments)]
 pub fn executar_com_repo<R: GedocRepository>(
     siape: &str,
@@ -155,7 +169,9 @@ pub fn executar_com_repo<R: GedocRepository>(
     categorias: &[Categoria],
     modo: ModoClassificacao,
     chat: Option<&dyn ChatIa>,
-    cache: Option<&mut CacheArquivo>,
+    cache_categoria: Option<&mut CacheArquivo>,
+    dir_documentos: &Path,
+    cache_resumo: Option<&mut CacheArquivo>,
 ) -> Result<ResultadoView, AppError> {
     siape::validar(siape)?;
     let repositorio = repositorio.unwrap_or(REPOSITORIO_PADRAO);
@@ -164,7 +180,17 @@ pub fn executar_com_repo<R: GedocRepository>(
     filtro::filtrar_por_siape(&mut docs, siape);
     let (mut validos, _descartados) = filtro::separar(docs);
 
-    classificar_lote(&mut validos, categorias, modo, chat, cache);
+    classificar_lote(&mut validos, categorias, modo, chat, cache_categoria);
+
+    // US6: resumo só no modo `llm` e só quando há um `ChatIa` configurado
+    // (mesma condição da classificação); sem chat, `doc.resumo` permanece
+    // `None` — não existe "resumo por palavra-chave" de fallback (R11: a
+    // ausência de resumo nunca aborta a busca, só o deixa vazio).
+    if modo == ModoClassificacao::Llm {
+        if let Some(chat) = chat {
+            resumidor::resumir_lote(&mut validos, siape, chat, dir_documentos, cache_resumo);
+        }
+    }
 
     let ordem: Vec<String> = categorias.iter().map(|c| c.nome.clone()).collect();
     Ok(montar_resultado(siape, total, validos, &ordem))
@@ -173,12 +199,15 @@ pub fn executar_com_repo<R: GedocRepository>(
 /// Fronteira async do comando: valida rápido (sem tocar rede/disco) e só
 /// então roda, num único `spawn_blocking`, toda a I/O bloqueante — ler
 /// `config/categoria.json`, resolver a chave de IA (se `modo == Llm`),
-/// buscar no portal e classificar (lendo/gravando o cache, se aplicável).
+/// buscar no portal, classificar e resumir (lendo/gravando os caches, se
+/// aplicável).
 pub async fn executar(
     siape: &str,
     repositorio: Option<&str>,
     modo: ModoClassificacao,
-    cache_path: Option<PathBuf>,
+    cache_categoria_path: Option<PathBuf>,
+    dir_documentos: PathBuf,
+    cache_resumo_path: Option<PathBuf>,
 ) -> Result<ResultadoView, AppError> {
     siape::validar(siape)?;
 
@@ -199,9 +228,11 @@ pub async fn executar(
                 Vec::new()
             });
 
-        let mut cache = cache_path.map(CacheArquivo::carregar);
+        let mut cache_categoria = cache_categoria_path.map(CacheArquivo::carregar);
+        let mut cache_resumo = cache_resumo_path.map(CacheArquivo::carregar);
         // Sem chave configurada, `resolver_api_key`/`MistralClient::novo`
-        // devolvem `None` e o modo `llm` degrada para `keyword` (R11).
+        // devolvem `None` e o modo `llm` degrada para `keyword` (R11) — e o
+        // resumo (US6) simplesmente não roda.
         let cliente_ia = (modo == ModoClassificacao::Llm)
             .then(resolver_api_key)
             .flatten()
@@ -215,7 +246,9 @@ pub async fn executar(
             &categorias,
             modo,
             chat,
-            cache.as_mut(),
+            cache_categoria.as_mut(),
+            &dir_documentos,
+            cache_resumo.as_mut(),
         )
     })
     .await
@@ -232,15 +265,32 @@ pub async fn buscar_por_siape(
     siape::validar(&input.siape)?;
 
     let modo = ModoClassificacao::from_entrada(input.modo.as_deref());
-    // Cache só é relevante (e só é resolvido) no modo `llm` — o modo
+    // Caches só são relevantes (e só são resolvidos) no modo `llm` — o modo
     // `keyword` é instantâneo e não se beneficia de cache (ver doc do
     // módulo).
-    let cache_path = (modo == ModoClassificacao::Llm)
+    let app_data_dir = (modo == ModoClassificacao::Llm)
         .then(|| app.path().app_data_dir().ok())
-        .flatten()
+        .flatten();
+    let cache_categoria_path = app_data_dir
+        .clone()
         .map(|dir| dir.join(SUBPASTA_CACHE).join(ARQUIVO_CACHE_CLASSIFICACAO));
+    let cache_resumo_path =
+        app_data_dir.map(|dir| dir.join(SUBPASTA_CACHE).join(ARQUIVO_CACHE_RESUMO));
+    // Best-effort: se `app_data_dir()` falhar, o resumo simplesmente nunca
+    // encontrará um PDF já baixado e cai no trecho (R11) — nunca aborta a
+    // busca por não conseguir resolver este diretório opcional.
+    let dir_documentos =
+        documento::dir_documentos(&app).unwrap_or_else(|_| PathBuf::from(SUBPASTA_DOCUMENTOS));
 
-    executar(&input.siape, input.repositorio.as_deref(), modo, cache_path).await
+    executar(
+        &input.siape,
+        input.repositorio.as_deref(),
+        modo,
+        cache_categoria_path,
+        dir_documentos,
+        cache_resumo_path,
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -280,19 +330,69 @@ mod tests {
         d
     }
 
+    /// Diretório neutro para os testes que não exercitam o resumo (US6) —
+    /// nunca é lido, já que `resumir_lote` só roda no modo `llm` com `chat`.
+    fn dir_documentos_neutro() -> PathBuf {
+        PathBuf::from(".")
+    }
+
+    /// Dublê de `ChatIa` para os testes de US6: `chat` classifica (JSON) e
+    /// `resumir` resume (texto livre), cada um com sua fila de respostas.
+    struct ChatFake {
+        respostas_resumir: std::cell::RefCell<std::collections::VecDeque<Result<String, AppError>>>,
+        chamadas_resumir: std::cell::RefCell<u32>,
+    }
+
+    impl ChatFake {
+        fn com_resumos(respostas: Vec<Result<String, AppError>>) -> Self {
+            Self {
+                respostas_resumir: std::cell::RefCell::new(respostas.into()),
+                chamadas_resumir: std::cell::RefCell::new(0),
+            }
+        }
+    }
+
+    impl ChatIa for ChatFake {
+        fn chat(&self, _sistema: &str, _usuario: &str) -> Result<String, AppError> {
+            Ok(r#"{"categoria":"Progressão"}"#.to_string())
+        }
+
+        fn resumir(&self, _sistema: &str, _usuario: &str) -> Result<String, AppError> {
+            *self.chamadas_resumir.borrow_mut() += 1;
+            self.respostas_resumir
+                .borrow_mut()
+                .pop_front()
+                .unwrap_or_else(|| Ok("resumo padrão".to_string()))
+        }
+    }
+
     #[tokio::test]
     async fn rejeita_siape_invalido_sem_tocar_rede() {
-        let erro = executar("abc", None, ModoClassificacao::Keyword, None)
-            .await
-            .unwrap_err();
+        let erro = executar(
+            "abc",
+            None,
+            ModoClassificacao::Keyword,
+            None,
+            dir_documentos_neutro(),
+            None,
+        )
+        .await
+        .unwrap_err();
         assert!(matches!(erro, AppError::SiapeInvalido { .. }));
     }
 
     #[tokio::test]
     async fn rejeita_siape_curto_demais() {
-        let erro = executar("123", None, ModoClassificacao::Keyword, None)
-            .await
-            .unwrap_err();
+        let erro = executar(
+            "123",
+            None,
+            ModoClassificacao::Keyword,
+            None,
+            dir_documentos_neutro(),
+            None,
+        )
+        .await
+        .unwrap_err();
         assert!(matches!(erro, AppError::SiapeInvalido { .. }));
     }
 
@@ -313,6 +413,8 @@ mod tests {
             ModoClassificacao::Keyword,
             None,
             None,
+            &dir_documentos_neutro(),
+            None,
         )
         .expect("deve montar resultado");
 
@@ -326,6 +428,10 @@ mod tests {
         assert_eq!(resultado.categorias[0].categoria, OUTROS);
         assert_eq!(resultado.categorias[0].qtd, 1);
         assert!(!resultado.tem_pdf);
+        assert!(
+            resultado.categorias[0].itens[0].resumo.is_none(),
+            "modo keyword não resume (US6)"
+        );
     }
 
     #[test]
@@ -340,6 +446,8 @@ mod tests {
             &[],
             ModoClassificacao::Keyword,
             None,
+            None,
+            &dir_documentos_neutro(),
             None,
         )
         .unwrap_err();
@@ -373,6 +481,8 @@ mod tests {
             ModoClassificacao::Keyword,
             None,
             None,
+            &dir_documentos_neutro(),
+            None,
         )
         .expect("deve montar resultado");
 
@@ -383,6 +493,160 @@ mod tests {
         );
         assert_eq!(resultado.categorias[0].categoria, "Progressão");
         assert_eq!(resultado.categorias[1].categoria, OUTROS);
+    }
+
+    // --- US6: resumo no modo llm ------------------------------------------ //
+
+    #[test]
+    fn modo_llm_com_chat_resume_cada_documento_valido() {
+        let doc1 = doc_com_siape(
+            "https://gedoc.ifes.edu.br/documento/aaaa?inline",
+            "PORTARIA Nº 1 - 2024 - Progressão funcional",
+            "1998547",
+        );
+        let repo = RepoFake::novo(Ok((1, vec![doc1])));
+        let chat = ChatFake::com_resumos(vec![Ok("Resumo gerado pela IA.".to_string())]);
+
+        let resultado = executar_com_repo(
+            "1998547",
+            None,
+            &repo,
+            &[],
+            ModoClassificacao::Llm,
+            Some(&chat),
+            None,
+            &dir_documentos_neutro(),
+            None,
+        )
+        .expect("deve montar resultado");
+
+        assert_eq!(
+            resultado.categorias[0].itens[0].resumo.as_deref(),
+            Some("Resumo gerado pela IA.")
+        );
+        assert_eq!(*chat.chamadas_resumir.borrow(), 1);
+    }
+
+    #[test]
+    fn modo_llm_sem_chat_nao_resume_e_nao_aborta_a_busca_r11() {
+        let doc1 = doc_com_siape(
+            "https://gedoc.ifes.edu.br/documento/aaaa?inline",
+            "PORTARIA Nº 1 - 2024 - Progressão funcional",
+            "1998547",
+        );
+        let repo = RepoFake::novo(Ok((1, vec![doc1])));
+
+        let resultado = executar_com_repo(
+            "1998547",
+            None,
+            &repo,
+            &[],
+            ModoClassificacao::Llm,
+            None, // sem chave configurada
+            None,
+            &dir_documentos_neutro(),
+            None,
+        )
+        .expect("busca não deve abortar sem chat (R11)");
+
+        assert!(resultado.categorias[0].itens[0].resumo.is_none());
+    }
+
+    #[test]
+    fn modo_llm_falha_ao_resumir_1_doc_nao_aborta_o_lote_r11() {
+        let doc1 = doc_com_siape(
+            "https://gedoc.ifes.edu.br/documento/aaaa?inline",
+            "PORTARIA Nº 1 - 2024 - Assunto A",
+            "1998547",
+        );
+        let doc2 = doc_com_siape(
+            "https://gedoc.ifes.edu.br/documento/bbbb?inline",
+            "PORTARIA Nº 2 - 2024 - Assunto B",
+            "1998547",
+        );
+        let repo = RepoFake::novo(Ok((2, vec![doc1, doc2])));
+        let chat = ChatFake::com_resumos(vec![
+            Err(AppError::FalhaIA {
+                motivo: "instável".to_string(),
+            }),
+            Ok("Resumo do segundo documento.".to_string()),
+        ]);
+
+        let resultado = executar_com_repo(
+            "1998547",
+            None,
+            &repo,
+            &[],
+            ModoClassificacao::Llm,
+            Some(&chat),
+            None,
+            &dir_documentos_neutro(),
+            None,
+        )
+        .expect("falha ao resumir 1 doc não pode abortar a busca (R11)");
+
+        let itens = &resultado.categorias[0].itens;
+        assert_eq!(itens.len(), 2);
+        assert!(itens.iter().any(|d| d.resumo.is_none()));
+        assert!(itens
+            .iter()
+            .any(|d| d.resumo.as_deref() == Some("Resumo do segundo documento.")));
+    }
+
+    #[test]
+    fn modo_llm_cache_de_resumo_e_independente_do_cache_de_categoria_r6() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut cache_categoria =
+            CacheArquivo::carregar(dir.path().join(ARQUIVO_CACHE_CLASSIFICACAO));
+        let mut cache_resumo = CacheArquivo::carregar(dir.path().join(ARQUIVO_CACHE_RESUMO));
+        let chat = ChatFake::com_resumos(vec![Ok("Resumo cacheado.".to_string())]);
+
+        let doc = || {
+            doc_com_siape(
+                "https://gedoc.ifes.edu.br/documento/aaaa?inline",
+                "PORTARIA Nº 1 - 2024 - Progressão funcional",
+                "1998547",
+            )
+        };
+
+        let repo1 = RepoFake::novo(Ok((1, vec![doc()])));
+        executar_com_repo(
+            "1998547",
+            None,
+            &repo1,
+            &[],
+            ModoClassificacao::Llm,
+            Some(&chat),
+            Some(&mut cache_categoria),
+            &dir_documentos_neutro(),
+            Some(&mut cache_resumo),
+        )
+        .expect("primeira busca");
+        assert_eq!(*chat.chamadas_resumir.borrow(), 1);
+
+        // "nova busca", mesmo link: cache de resumo evita nova chamada (R6).
+        let repo2 = RepoFake::novo(Ok((1, vec![doc()])));
+        let resultado2 = executar_com_repo(
+            "1998547",
+            None,
+            &repo2,
+            &[],
+            ModoClassificacao::Llm,
+            Some(&chat),
+            Some(&mut cache_categoria),
+            &dir_documentos_neutro(),
+            Some(&mut cache_resumo),
+        )
+        .expect("segunda busca");
+
+        assert_eq!(*chat.chamadas_resumir.borrow(), 1, "cache hit (R6)");
+        assert_eq!(
+            resultado2.categorias[0].itens[0].resumo.as_deref(),
+            Some("Resumo cacheado.")
+        );
+        // Os dois caches vivem em arquivos separados.
+        assert!(dir.path().join(ARQUIVO_CACHE_CLASSIFICACAO).is_file());
+        assert!(dir.path().join(ARQUIVO_CACHE_RESUMO).is_file());
     }
 
     // --- montar_resultado ------------------------------------------------ //
@@ -408,6 +672,28 @@ mod tests {
         assert!(grupo.itens[0].arquivo.is_none());
         assert!(grupo.itens[0].resumo.is_none());
         assert!(!resultado.tem_pdf);
+    }
+
+    #[test]
+    fn montar_resultado_repassa_arquivo_e_resumo_do_documento_a_view() {
+        // Regressão: `DocView::from` já descartou `arquivo`/`resumo` (hard-coded
+        // None); sem eles, o resumo (US6) e o PDF (US4) nunca chegariam à View.
+        let mut doc = doc_com_siape(
+            "https://gedoc.ifes.edu.br/documento/cccc?inline",
+            "PORTARIA Nº 3 - 2024 - Assunto",
+            "1998547",
+        );
+        doc.arquivo = Some("2024_3_Assunto.pdf".to_string());
+        doc.resumo = Some("Determina a progressão do servidor.".to_string());
+
+        let resultado = montar_resultado("1998547", 1, vec![doc], &[]);
+        let item = &resultado.categorias[0].itens[0];
+
+        assert_eq!(item.arquivo.as_deref(), Some("2024_3_Assunto.pdf"));
+        assert_eq!(
+            item.resumo.as_deref(),
+            Some("Determina a progressão do servidor.")
+        );
     }
 
     #[test]

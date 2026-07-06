@@ -26,17 +26,29 @@ const TIMEOUT: Duration = Duration::from_secs(60);
 const RETRIES: u32 = 4;
 /// Intervalo mínimo entre chamadas (espelha `THROTTLE = 1.2` do Python).
 const THROTTLE_PADRAO: Duration = Duration::from_millis(1200);
-/// Classificação: resposta curta e determinística — exatamente uma categoria
-/// em JSON (R4). Fixo neste port porque, por ora, ele só serve classificação;
-/// se US6 (resumo) precisar de outro formato/limite, o trait pode crescer um
-/// parâmetro sem afetar quem já o usa.
+/// Classificação (US5, R4): resposta curta e determinística — exatamente uma
+/// categoria em JSON (ver `montar_corpo`, `modo_json = true`).
 const MAX_TOKENS: u32 = 40;
 const TEMPERATURE: f64 = 0.0;
+/// Resumo (US6): texto livre e mais longo — sem `response_format` fixo
+/// (espelha `resumir(..., max_tokens=300, temperature=0.2)` de
+/// `src/resumir_mistral.py`).
+const MAX_TOKENS_RESUMO: u32 = 300;
+const TEMPERATURE_RESUMO: f64 = 0.2;
 
-/// Port para um serviço de chat de IA. Modo JSON fixo (ver `montar_corpo`) —
-/// pensado para classificação; mantido simples de propósito.
+/// Port para um serviço de chat de IA. `chat` é usado pela classificação
+/// (US5): resposta curta, determinística, sempre JSON. `resumir` (US6) é uma
+/// variante de texto livre; tem um default que delega para `chat` — mantém
+/// compatibilidade com os dublês de teste já existentes (que só implementam
+/// `chat`) sem exigir que sejam alterados. `MistralClient` sobrescreve
+/// `resumir` com os parâmetros corretos (mais tokens, temperatura maior, sem
+/// forçar JSON).
 pub trait ChatIa {
     fn chat(&self, sistema: &str, usuario: &str) -> Result<String, AppError>;
+
+    fn resumir(&self, sistema: &str, usuario: &str) -> Result<String, AppError> {
+        self.chat(sistema, usuario)
+    }
 }
 
 /// Adapter concreto sobre a API de chat completions da Mistral
@@ -89,9 +101,40 @@ impl MistralClient {
 
 impl ChatIa for MistralClient {
     fn chat(&self, sistema: &str, usuario: &str) -> Result<String, AppError> {
+        let corpo = montar_corpo(
+            &self.modelo,
+            sistema,
+            usuario,
+            MAX_TOKENS,
+            TEMPERATURE,
+            true,
+        );
+        self.enviar(corpo)
+    }
+
+    /// US6 — resumo: texto livre (sem `response_format` fixo), mais tokens e
+    /// temperatura levemente maior que a classificação. Mesmo throttle/retry
+    /// (R9) do `chat`, via `enviar`.
+    fn resumir(&self, sistema: &str, usuario: &str) -> Result<String, AppError> {
+        let corpo = montar_corpo(
+            &self.modelo,
+            sistema,
+            usuario,
+            MAX_TOKENS_RESUMO,
+            TEMPERATURE_RESUMO,
+            false,
+        );
+        self.enviar(corpo)
+    }
+}
+
+impl MistralClient {
+    /// Aplica o throttle (R9), serializa o corpo e executa o retry/backoff
+    /// em erros transitórios (429/5xx) — compartilhado por `chat` e
+    /// `resumir`; só o corpo da requisição muda entre os dois usos.
+    fn enviar(&self, corpo: Value) -> Result<String, AppError> {
         self.respeitar_throttle();
 
-        let corpo = montar_corpo(&self.modelo, sistema, usuario);
         let corpo_bytes = serde_json::to_vec(&corpo).map_err(|e| AppError::FalhaIA {
             motivo: format!("Falha ao montar a requisição: {e}"),
         })?;
@@ -154,20 +197,31 @@ fn backoff(tentativa: u32) -> Duration {
     Duration::from_secs(2u64.pow(tentativa))
 }
 
-/// Monta o corpo JSON do chat completion — modo JSON fixo, `temperature=0`,
-/// `max_tokens=40` (classificação: resposta curta e determinística, R4).
+/// Monta o corpo JSON do chat completion. `modo_json` força
+/// `response_format: json_object` (classificação — R4: resposta curta,
+/// determinística, parseável); o resumo (US6) passa `false` — texto livre.
 /// Função pura, testável sem rede.
-fn montar_corpo(modelo: &str, sistema: &str, usuario: &str) -> Value {
-    serde_json::json!({
+fn montar_corpo(
+    modelo: &str,
+    sistema: &str,
+    usuario: &str,
+    max_tokens: u32,
+    temperature: f64,
+    modo_json: bool,
+) -> Value {
+    let mut corpo = serde_json::json!({
         "model": modelo,
-        "temperature": TEMPERATURE,
-        "max_tokens": MAX_TOKENS,
-        "response_format": { "type": "json_object" },
+        "temperature": temperature,
+        "max_tokens": max_tokens,
         "messages": [
             { "role": "system", "content": sistema },
             { "role": "user", "content": usuario },
         ],
-    })
+    });
+    if modo_json {
+        corpo["response_format"] = serde_json::json!({ "type": "json_object" });
+    }
+    corpo
 }
 
 /// Extrai `choices[0].message.content` (já sem espaços nas bordas) do corpo
@@ -257,7 +311,14 @@ mod tests {
 
     #[test]
     fn montar_corpo_usa_modo_json_fixo_e_parametros_de_classificacao() {
-        let corpo = montar_corpo("mistral-small-latest", "sistema", "usuario");
+        let corpo = montar_corpo(
+            "mistral-small-latest",
+            "sistema",
+            "usuario",
+            MAX_TOKENS,
+            TEMPERATURE,
+            true,
+        );
         assert_eq!(corpo["model"], "mistral-small-latest");
         assert_eq!(corpo["temperature"], 0.0);
         assert_eq!(corpo["max_tokens"], 40);
@@ -266,6 +327,35 @@ mod tests {
         assert_eq!(corpo["messages"][0]["content"], "sistema");
         assert_eq!(corpo["messages"][1]["role"], "user");
         assert_eq!(corpo["messages"][1]["content"], "usuario");
+    }
+
+    #[test]
+    fn montar_corpo_do_resumo_usa_texto_livre_sem_forcar_json() {
+        let corpo = montar_corpo(
+            "mistral-small-latest",
+            "sistema",
+            "usuario",
+            MAX_TOKENS_RESUMO,
+            TEMPERATURE_RESUMO,
+            false,
+        );
+        assert_eq!(corpo["temperature"], 0.2);
+        assert_eq!(corpo["max_tokens"], 300);
+        assert!(
+            corpo.get("response_format").is_none(),
+            "resumo não deve forçar response_format"
+        );
+    }
+
+    #[test]
+    fn resumir_tem_default_que_delega_para_chat_compatibilidade_com_dubles_existentes() {
+        struct FakeSoChat;
+        impl ChatIa for FakeSoChat {
+            fn chat(&self, _sistema: &str, _usuario: &str) -> Result<String, AppError> {
+                Ok("via chat".to_string())
+            }
+        }
+        assert_eq!(FakeSoChat.resumir("s", "u").unwrap(), "via chat");
     }
 
     #[test]

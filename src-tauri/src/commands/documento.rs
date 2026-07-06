@@ -21,10 +21,7 @@ use crate::domain::siape;
 use crate::error::AppError;
 use crate::ports::http::{HttpPort, ReqwestHttp};
 use crate::services::downloader;
-
-/// Subpasta, dentro do diretório de dados do app, onde os PDFs baixados
-/// ficam organizados por SIAPE (`<app_data_dir>/documentos/<siape>/`).
-const SUBPASTA_DOCUMENTOS: &str = "documentos";
+use crate::services::downloader::SUBPASTA_DOCUMENTOS;
 
 #[derive(Debug, Deserialize)]
 pub struct BaixarDocumentoInput {
@@ -77,7 +74,10 @@ pub fn resolver_caminho_abertura(
 /// `<app_data_dir>/documentos` — raiz de todos os downloads (fora do VCS,
 /// Princípio II/LGPD). Único ponto que conhece o `AppHandle`; todo o resto
 /// deste módulo recebe o diretório já resolvido, o que o mantém testável.
-fn dir_documentos(app: &AppHandle) -> Result<PathBuf, AppError> {
+/// `pub(crate)`: também usado por `commands::buscar` (US6) para localizar,
+/// de forma best-effort, um PDF já baixado a resumir — mesma convenção de
+/// diretório das duas pontas.
+pub(crate) fn dir_documentos(app: &AppHandle) -> Result<PathBuf, AppError> {
     let base = app
         .path()
         .app_data_dir()
