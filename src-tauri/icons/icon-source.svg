@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1C8B5C"/>
+      <stop offset="1" stop-color="#0E5236"/>
+    </linearGradient>
+  </defs>
+
+  <!-- container rounded-square (estilo app icon) -->
+  <rect x="0" y="0" width="1024" height="1024" rx="224" fill="url(#bg)"/>
+
+  <!-- documento -->
+  <g transform="rotate(-8 512 500)">
+    <!-- sombra -->
+    <rect x="300" y="230" width="372" height="536" rx="44" fill="#08301F" opacity="0.28"/>
+    <!-- pagina -->
+    <rect x="286" y="214" width="372" height="536" rx="44" fill="#FFFFFF"/>
+    <!-- linhas de texto -->
+    <g fill="#16794E" opacity="0.22">
+      <rect x="336" y="300" width="272" height="30" rx="15"/>
+      <rect x="336" y="362" width="272" height="30" rx="15"/>
+      <rect x="336" y="424" width="272" height="30" rx="15"/>
+      <rect x="336" y="486" width="168" height="30" rx="15"/>
+    </g>
+  </g>
+
+  <!-- lupa (busca) -->
+  <!-- vidro tingido: mostra o documento por baixo, como uma lente -->
+  <circle cx="642" cy="628" r="150" fill="#17784E" opacity="0.16"/>
+  <!-- cabo: base escura + branco por cima (separacao do fundo) -->
+  <line x1="748" y1="734" x2="884" y2="870" stroke="#0B4530" stroke-width="84" stroke-linecap="round"/>
+  <line x1="748" y1="734" x2="884" y2="870" stroke="#FFFFFF" stroke-width="64" stroke-linecap="round"/>
+  <!-- aro: keyline escuro + branco por cima -->
+  <circle cx="642" cy="628" r="150" fill="none" stroke="#0B4530" stroke-width="78"/>
+  <circle cx="642" cy="628" r="150" fill="none" stroke="#FFFFFF" stroke-width="58"/>
+</svg>
