@@ -473,7 +473,10 @@ mod tests {
     fn link_com_esquema_perigoso_nunca_vira_href_clicavel() {
         // Vetor real: o `link` chega do portal e é aberto no navegador. Um
         // esquema `javascript:`/`data:` não pode virar um href executável.
-        for esquema in ["javascript:alert(document.cookie)", "data:text/html,<script>alert(1)</script>"] {
+        for esquema in [
+            "javascript:alert(document.cookie)",
+            "data:text/html,<script>alert(1)</script>",
+        ] {
             let item = DocView {
                 titulo: "PORTARIA Nº 1 - 2024 - X".to_string(),
                 data: Some("10/01/2024".to_string()),
@@ -490,10 +493,19 @@ mod tests {
             let md = gerar_markdown(&resultado);
             let html = markdown_para_html(&md, "Relatório");
 
-            assert!(!md.contains("[Original](javascript:"), "md não pode linkar javascript:");
-            assert!(!html.contains("href=\"javascript:"), "html: sem href javascript:");
+            assert!(
+                !md.contains("[Original](javascript:"),
+                "md não pode linkar javascript:"
+            );
+            assert!(
+                !html.contains("href=\"javascript:"),
+                "html: sem href javascript:"
+            );
             assert!(!html.contains("href=\"data:"), "html: sem href data:");
-            assert!(md.contains("Original (link indisponível)"), "link inseguro é rotulado, não clicável");
+            assert!(
+                md.contains("Original (link indisponível)"),
+                "link inseguro é rotulado, não clicável"
+            );
         }
     }
 
