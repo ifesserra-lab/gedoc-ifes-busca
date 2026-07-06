@@ -1,115 +1,146 @@
-# GeDoc IFES — busca, categorização e resumo de documentos
+# GeDoc IFES Toolkit
 
-Ferramentas em Python para pesquisar documentos no
+Aplicativo **desktop** (Tauri 2 + Vue 3) para consultar documentos públicos do
 [GeDoc do IFES](https://gedoc.ifes.edu.br/faces/pesquisarDocumentos/pesquisarHistorico.xhtml)
-por palavra-chave (ex.: um número **SIAPE**), baixar os PDFs, **categorizá-los**
-e **resumi-los** com a API da Mistral, gerando Markdown e PDF.
+por matrícula **SIAPE**: busca com paginação completa, filtra os documentos que
+realmente citam o SIAPE no texto, baixa os PDFs com nome padronizado, classifica
+e resume com IA (opcional) e gera relatório + pacote ZIP — tudo por uma
+interface única.
 
-O portal roda em **JSF/PrimeFaces**: a busca exige `ViewState`, sessão
-(`jsessionid`) e requisições AJAX parciais. Os ids do formulário são
-descobertos dinamicamente (resistem a redeploy do servidor).
+> O portal roda em **JSF/PrimeFaces**: a busca exige `ViewState`, sessão
+> (`jsessionid`) e requisições AJAX parciais; os ids do formulário são
+> descobertos dinamicamente em runtime (resistem a redeploy do servidor).
 
-## Estrutura
+## Funcionalidades
+
+- **Buscar por SIAPE** — coleta todas as páginas, sem duplicatas.
+- **Filtro anti-falso-positivo** — só lista documentos cujo texto contém o
+  SIAPE (evita casar número de processo por coincidência).
+- **Download organizado** — PDFs nomeados `AAAA_NUMERO_ASSUNTO.pdf`, sem
+  sobrescrever; **barra de progresso** ao baixar todos.
+- **Classificação por categoria** — `keyword` (grátis, instantâneo) ou **IA**
+  (Mistral, guiada pelas descrições de `categoria.json`); cache por documento.
+- **Resumo por documento** — fiel ao texto, via IA; cache por documento.
+- **Relatório + ZIP** — relatório consolidado (HTML/Markdown, "Salvar como PDF"
+  no navegador) agrupado por categoria + ZIP de todos os PDFs.
+- **CRUD de categorias** — cadastrar/editar/remover (persiste fora do
+  repositório); a busca usa as categorias atualizadas.
+- **Tema claro/escuro**, design minimalista (WCAG AA), estados de UI dedicados
+  (carregando/vazio/erro/sucesso) com feedback via toast.
+
+## Stack e arquitetura
+
+- **Backend**: Rust (Tauri 2) — arquitetura MVC/DDD, testável sem rede.
+  - `src-tauri/src/domain/` — modelo e regras puras (SIAPE, Documento, nome de
+    arquivo, categoria).
+  - `src-tauri/src/services/` — orquestração (repositório GeDoc, filtro,
+    classificador, resumidor, cache, relatório, ZIP, download).
+  - `src-tauri/src/ports/` — contratos (Repository/Strategy): `HttpPort`,
+    `GedocRepository`, `Classificador`, `ChatIa`. A infra concreta
+    (`reqwest`, `MistralClient`) fica atrás desses ports — por isso todo teste
+    roda **offline** com dublês.
+  - `src-tauri/src/commands/` — fronteira IPC (`#[tauri::command]`).
+- **Frontend**: Vue 3 (`<script setup>` + TS) + Pinia + Vue Router + Nuxt UI 4
+  (Tailwind v4). Estado/ViewModel em `app/src/stores/`, telas em
+  `app/src/views/`, wrappers IPC tipados em `app/src/services/ipc.ts`.
 
 ```
 gedocs/
-├── src/                     # codigo
-│   ├── buscar_gedoc.py      # busca + paginacao + filtro SIAPE + download + HTML
-│   ├── categorizar.py       # classifica em categorias (keyword ou LLM)
-│   ├── resumir_mistral.py   # resume cada doc e agrupa por categoria
-│   ├── md_para_pdf.py       # Markdown -> PDF (via Chrome headless)
-│   └── mistral_client.py    # cliente compartilhado da API Mistral
+├── src-tauri/            # backend Rust (Tauri) — Model/Controller
+│   ├── src/{domain,services,ports,commands}/
+│   ├── capabilities/     # permissões (opener, escopo $APPDATA)
+│   └── tests/            # testes de integração + fixtures
+├── app/                  # frontend Vue (View/estado)
+│   ├── src/{views,components,stores,services,router,assets}/
+│   └── tests/            # Vitest
 ├── config/
-│   ├── categoria.json       # nome + descricao das categorias (base do LLM)
-│   ├── .env.example         # modelo de credenciais
-│   └── .env                 # sua chave Mistral (NAO versionado)
-├── data/                    # tudo gerado (PDFs, JSON, resumos, PDF) — NAO versionado
-└── README.md
+│   ├── categoria.json    # nome + descrição das categorias (base do LLM)
+│   └── .env.example      # modelo de credenciais (copie p/ .env)
+├── specs/                # Spec-Driven Development (spec/plan/tasks por feature)
+├── docs/                 # ontologia, análise/projeto
+├── src/                  # CLI Python (legado/referência — ver abaixo)
+└── .github/workflows/    # CI
 ```
 
-`data/` e `config/.env` estão no [.gitignore](.gitignore): contêm PDFs/resumos
-com **dados pessoais de terceiros** e a chave da API. Gere-os localmente.
+## Rodar (desenvolvimento)
 
-## Requisitos
-
-- Python 3.8+, [`requests`](https://pypi.org/project/requests/),
-  [`markdown`](https://pypi.org/project/Markdown/)
-- `pdftotext` (pacote **poppler**) — extração de texto dos PDFs
-- Google Chrome / Chromium — geração de PDF
-- Chave da API Mistral (para categorização LLM e resumo)
+Requisitos: **Rust** (stable), **Node 20+**. No Linux, as dependências de
+sistema do Tauri (webkit2gtk-4.1, gtk-3, etc. — ver `.github/workflows/ci.yml`).
 
 ```bash
-pip install requests markdown
+# dependências do frontend
+cd app && npm ci && cd ..
+
+# app desktop (janela nativa) — a partir da raiz do repositório
+./app/node_modules/.bin/tauri dev
+```
+
+Fluxo na tela: digite o SIAPE → **Pesquisar** → lista agrupada por categoria.
+Cada documento tem botão **PDF** (baixa e abre). No cabeçalho: **Baixar todos os
+PDFs** (com progresso), **Baixar relatório**, **Baixar ZIP**, e o toggle
+**Classificar e resumir com IA**. A aba **Categorias** faz o CRUD.
+
+### IA (opcional)
+
+A classificação/resumo com IA usa a API da Mistral. Sem chave, o app funciona
+normalmente no modo `keyword` (o toggle de IA degrada para keyword).
+
+```bash
 cp config/.env.example config/.env   # e preencha MISTRAL_KEY
 ```
 
-## Pipeline
+A chave é lida em runtime (`MISTRAL_API_KEY` ou `MISTRAL_KEY`, do ambiente ou de
+`config/.env`); nunca é versionada nem registrada em log.
 
-Todos os comandos rodam a partir da raiz do projeto.
-
-### 1. Buscar + baixar
-
-```bash
-python3 src/buscar_gedoc.py 1998547 \
-    --baixar data/documentos_1998547 \
-    --html   data/index_1998547.html \
-    --json   data/resultado_1998547.json
-```
-
-Baixa todos os resultados (com paginação), filtra os que contêm o SIAPE no
-texto e nomeia os PDFs como `AAAA_NUMERO_ASSUNTO.pdf`.
-
-### 2. Categorizar
-
-As categorias são definidas em [config/categoria.json](config/categoria.json)
-(nome + descrição). No modo `llm`, a Mistral classifica cada documento com base
-nessas descrições:
+## Testes e CI
 
 ```bash
-python3 src/categorizar.py \
-    --json  data/resultado_1998547.json \
-    --pdfs  data/documentos_1998547 \
-    --out   data/categorizado_1998547 \
-    --md    data/categorizado_1998547.md \
-    --modo  llm \
-    --cache data/classificacao_1998547.json
+cd src-tauri && cargo test && cargo clippy --all-targets -- -D warnings && cargo fmt --check
+cd app && npm test && npx vue-tsc --noEmit
 ```
 
-Copia os PDFs em subpastas por categoria e gera um Markdown com tabela +
-listas. `--modo keyword` usa regras por palavra-chave (grátis, sem API).
-Editar `categoria.json` muda as categorias sem tocar no código.
-
-### 3. Resumir (agrupado por categoria)
-
-```bash
-python3 src/resumir_mistral.py \
-    --json          data/resultado_1998547.json \
-    --pdfs          data/documentos_1998547 \
-    --out           data/resumo_1998547.md \
-    --cache         data/resumos_1998547_cache.json \
-    --classificacao data/classificacao_1998547.json
-```
-
-Extrai o texto de cada PDF, pede um resumo curto à Mistral e gera um Markdown
-com **tabela de categorias** + **uma seção por categoria** contendo as
-portarias (data, SIAPE, link, arquivo e resumo). Use `--limit 3` para testar.
-
-### 4. Gerar PDF
-
-```bash
-python3 src/md_para_pdf.py data/resumo_1998547.md \
-    --out data/resumo_1998547.pdf --titulo "Resumo GeDoc - SIAPE 1998547"
-```
-
-## Cache e custo
-
-- `categorizar` e `resumir_mistral` mantêm **cache** (por link do documento).
-  Reexecuções não repetem chamadas à Mistral — reprocessar é grátis.
-- `categorizar` aplica _throttle_ entre chamadas para respeitar o rate limit
-  (HTTP 429); há retry com backoff em erros transitórios.
+Todos os testes rodam **offline** (rede e IA são dubladas; disco usa diretório
+temporário) — Princípio VII (TDD). A [CI](.github/workflows/ci.yml) roda esses
+mesmos checks em cada pull request.
 
 ## Privacidade (LGPD)
 
-Os PDFs, resumos e o `data/` contêm **dados pessoais de terceiros** (nomes e
-SIAPEs de membros de comissões). Nada em `data/` é versionado. Use apenas para
-consulta de documentos públicos do IFES e respeite a legislação.
+Os PDFs baixados, resumos, relatórios e o cache contêm **dados pessoais de
+terceiros** (nomes e SIAPEs de membros de comissões). Nada disso é versionado:
+
+- Arquivos gerados vão para o **diretório de dados do app**
+  (`app_data_dir`/`app_config_dir`), **fora do repositório**.
+- `config/.env` (chave da API) e `data/` estão no
+  [.gitignore](.gitignore); só `config/.env.example` e `config/categoria.json`
+  (rótulos genéricos, sem PII) são rastreados.
+
+Use apenas para consulta de documentos **públicos** do IFES e respeite a
+legislação.
+
+## Desenvolvimento orientado por especificação (SDD)
+
+O projeto segue [Spec-Driven Development](https://github.com/github/spec-kit):
+cada feature tem `spec.md` → `plan.md` → `tasks.md` em [specs/](specs/), sob a
+[constituição](.specify/memory/constitution.md) do projeto (OO, TDD, código
+pequeno, padrões, privacidade/LGPD, issue-first). Toda task vira issue no
+GitHub antes da implementação.
+
+## Legado: CLI Python (referência)
+
+A implementação original em Python (`src/*.py`) fez o mesmo fluxo por linha de
+comando e serve de **referência** para o backend Rust. Continua utilizável:
+
+```bash
+pip install requests markdown          # + poppler (pdftotext) e Chrome p/ PDF
+cp config/.env.example config/.env     # MISTRAL_KEY p/ categorização/resumo LLM
+
+# buscar + baixar + página HTML + JSON
+python3 src/buscar_gedoc.py 1998547 --baixar data/docs --html data/index.html --json data/r.json
+# categorizar (keyword|llm)  ·  resumir (agrupado por categoria)  ·  markdown -> PDF
+python3 src/categorizar.py      --json data/r.json --pdfs data/docs --md data/cat.md --modo llm
+python3 src/resumir_mistral.py  --json data/r.json --pdfs data/docs --out data/resumo.md
+python3 src/md_para_pdf.py      data/resumo.md --out data/resumo.pdf
+```
+
+Detalhes de cada script (flags, cache, throttle) no cabeçalho de cada arquivo em
+[src/](src/).
