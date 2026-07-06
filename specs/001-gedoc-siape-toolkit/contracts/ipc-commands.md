@@ -21,7 +21,13 @@ Fase 1. Comandos `#[tauri::command]` expostos pelo backend Rust à View (Vue via
 
 ## baixar_zip
 - **Entrada**: `{ siape: string }`
-- **Saída**: caminho do ZIP gerado (ou stream de bytes).
+- **Saída**: **nome** do ZIP gravado (`<siape>_documentos.zip`, R3) — nunca o
+  caminho absoluto (R7). Monta, a partir de `<app_data_dir>/documentos/<siape>/`
+  (US4), um ZIP com todo `*.pdf` já baixado, em
+  `<app_data_dir>/relatorios/<siape>_documentos.zip`, e revela o arquivo no
+  gerenciador de arquivos do SO.
+- **Erros**: `SiapeInvalido` (R10), `FalhaArquivo` (nenhum PDF baixado ainda —
+  mensagem amigável — ou falha de disco).
 - **US**: US7. **Regras**: R3, R7.
 
 ## abrir_documento
@@ -33,10 +39,19 @@ Fase 1. Comandos `#[tauri::command]` expostos pelo backend Rust à View (Vue via
   inexistente).
 - **US**: US4. **Regras**: R3, R7.
 
-## gerar_pdf_resumo
-- **Entrada**: `{ siape: string }`
-- **Saída**: caminho do PDF do relatório.
-- **US**: US7. **Regras**: R1.
+## gerar_relatorio
+- **Entrada**: `{ resultado: ResultadoView }` — a mesma `ResultadoView` que
+  `buscar_por_siape` devolveu à View (o relatório reflete a busca já mostrada
+  na tela, R1; não refaz a busca nem toca rede).
+- **Saída**: **nome** do HTML gravado (`<siape>_relatorio.html`, R3) — nunca o
+  caminho absoluto (R7). Gera um Markdown agrupado por categoria
+  (`services::relatorio::gerar_markdown`) e sua versão HTML self-contained
+  (`markdown_para_html`, CSS A4 inline, sem assets externos), grava os dois em
+  `<app_data_dir>/relatorios/` e abre o HTML com o app padrão do sistema —
+  **decisão**: sem Chrome headless/binário externo; "Imprimir → Salvar como
+  PDF" no navegador produz um PDF equivalente.
+- **Erros**: `SiapeInvalido` (R10, valida `resultado.termo`), `FalhaArquivo`.
+- **US**: US7. **Regras**: R1, R3, R7.
 
 ## listar_categorias
 - **Entrada**: `{}` · **Saída**: `Categoria[]` (de `config/categoria.json`).

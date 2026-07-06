@@ -143,3 +143,25 @@ export async function listarCategorias(): Promise<Categoria[]> {
 export async function salvarCategorias(categorias: Categoria[]): Promise<SalvarCategoriasResposta> {
   return invoke<SalvarCategoriasResposta>("salvar_categorias", { categorias });
 }
+
+/**
+ * US7 — gera o relatório consolidado (Markdown + HTML self-contained, ver
+ * decisão de PDF em `services::relatorio` no backend: nada de Chrome
+ * headless) a partir do MESMO `resultado` já mostrado na tela (R1 — reflete
+ * os resumos reais, sem refazer a busca) e abre o HTML com o app padrão do
+ * sistema. Devolve só o **nome** do arquivo gravado (nunca o caminho
+ * absoluto — R7), salvo em `<app_data_dir>/relatorios/`.
+ */
+export async function gerarRelatorio(resultado: ResultadoView): Promise<string> {
+  return invoke<string>("gerar_relatorio", { resultado });
+}
+
+/**
+ * US7 — monta um ZIP com todos os PDFs já baixados (US4) para `siape` em
+ * `<app_data_dir>/relatorios/<siape>_documentos.zip` e revela o arquivo no
+ * gerenciador de arquivos do SO. Sem nenhum PDF baixado ainda, rejeita com
+ * `FalhaArquivo` (mensagem amigável — ver `mensagemDeErro`).
+ */
+export async function baixarZip(siape: string): Promise<string> {
+  return invoke<string>("baixar_zip", { siape });
+}

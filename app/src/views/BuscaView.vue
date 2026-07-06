@@ -9,6 +9,7 @@ import ErrorState from "@/components/base/ErrorState.vue";
 import LoadingState from "@/components/base/LoadingState.vue";
 import CategoriaChips from "@/components/busca/CategoriaChips.vue";
 import DocItem from "@/components/busca/DocItem.vue";
+import RelatorioAcoes from "@/components/busca/RelatorioAcoes.vue";
 import { useBuscaStore } from "@/stores/busca";
 
 const store = useBuscaStore();
@@ -80,32 +81,7 @@ const store = useBuscaStore();
             documento(s) · SIAPE <span class="mono">{{ store.resultado.termo }}</span>
           </p>
 
-          <div class="busca__resumo-acoes">
-            <UTooltip text="Geração de PDF do resumo ainda não disponível (backend em desenvolvimento).">
-              <UButton
-                icon="i-lucide-file-text"
-                color="neutral"
-                variant="ghost"
-                size="sm"
-                class="alvo-minimo"
-                aria-disabled="true"
-              >
-                PDF do resumo
-              </UButton>
-            </UTooltip>
-            <UTooltip text="Exportação em ZIP ainda não disponível (backend em desenvolvimento).">
-              <UButton
-                icon="i-lucide-download"
-                color="neutral"
-                variant="ghost"
-                size="sm"
-                class="alvo-minimo"
-                aria-disabled="true"
-              >
-                Baixar ZIP
-              </UButton>
-            </UTooltip>
-          </div>
+          <RelatorioAcoes class="busca__resumo-acoes" :resultado="store.resultado" />
         </div>
 
         <CategoriaChips
@@ -221,11 +197,6 @@ const store = useBuscaStore();
   font-size: var(--text-34);
   font-weight: 700;
   color: var(--ink);
-}
-
-.busca__resumo-acoes {
-  display: flex;
-  gap: var(--sp-1);
 }
 
 .busca__painel {
