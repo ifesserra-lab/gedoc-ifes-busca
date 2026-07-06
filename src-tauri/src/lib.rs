@@ -21,6 +21,8 @@ pub fn run() {
             commands::buscar::buscar_por_siape,
             commands::documento::baixar_documento,
             commands::documento::abrir_documento,
+            commands::categorias::listar_categorias,
+            commands::categorias::salvar_categorias,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar a aplicação Tauri");

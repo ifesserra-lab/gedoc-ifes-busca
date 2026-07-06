@@ -121,11 +121,11 @@ forma independente. Backend Rust em `src-tauri/`, frontend Vue em `app/`.
 **Meta**: cadastrar/editar/remover categorias (persistem em config).
 **Teste independente**: criar persiste; nome duplicado rejeitado; remover funciona.
 
-- [ ] T046 [P] [US8] Teste: salvar rejeita nome vazio/duplicado em `src-tauri/tests/categorias.rs` (R5)
-- [ ] T047 [P] [US8] Teste de componente: modal CRUD em `app/tests/CategoriasView.spec.ts`
-- [ ] T048 [US8] Comandos `listar_categorias`/`salvar_categorias` em `src-tauri/src/commands/categorias.rs` (R5)
-- [~] T049 [US8] `app/src/views/CategoriasView.vue` (tabela + modal add/editar/remover) + rota `/categorias` — UI já entregue (#13); falta ligar ao IPC de persistência
-- [~] T050 [US8] `app/src/stores/categorias.ts` (Pinia) chamando IPC — store existe (#13); trocar stub por `listar/salvar_categorias`
+- [x] T046 [P] [US8] Teste: salvar rejeita nome vazio/duplicado em `src-tauri/src/services/categorias.rs` (R5) — como testes unitários (`#[cfg(test)] mod tests`, mesmo padrão de `carregar_categorias`), não um `tests/categorias.rs` à parte: round-trip salva+recarrega, nome vazio/só espaços, duplicado case-insensitive ("Férias"/"férias"), nada é gravado quando inválido, e a semeadura (`resolver_com_semente`) a partir do `config/categoria.json` empacotado
+- [x] T047 [P] [US8] Teste de componente: modal CRUD em `app/tests/CategoriasView.spec.ts` — store (salvar/rejeitar vazio+duplicado/remover, tudo via IPC mockado) e View (estado vazio, abrir modal, refletir uma categoria persistida na tabela)
+- [x] T048 [US8] Comandos `listar_categorias`/`salvar_categorias` em `src-tauri/src/commands/categorias.rs` (R5) — persistem em `AppHandle.path().app_config_dir()/categoria.json`, semeado do `config/categoria.json` empacotado na 1ª execução; `commands::buscar` (US5) passou a ler do mesmo caminho
+- [x] T049 [US8] `app/src/views/CategoriasView.vue` (tabela + modal add/editar/remover) + rota `/categorias` — ligado ao IPC real (loading/erro/sucesso), erro do backend também aparece no modal
+- [x] T050 [US8] `app/src/stores/categorias.ts` (Pinia) chamando IPC — `carregar`/`salvar`/`remover` via `listar_categorias`/`salvar_categorias`, validação R5 client-side antes do round-trip
 
 ## Phase 11: Polish & cross-cutting
 
