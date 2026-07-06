@@ -31,9 +31,6 @@ Baixe o instalador pronto na
 > bloquear, abra em **Ajustes do Sistema → Privacidade e Segurança → Abrir mesmo
 > assim**. Os instaladores são gerados automaticamente pela
 > [CI de release](.github/workflows/release.yml) a cada tag `v*`.
->
-> O repositório é **privado**: os links de download exigem estar autenticado no
-> GitHub com acesso ao repositório.
 
 ## Funcionalidades
 
