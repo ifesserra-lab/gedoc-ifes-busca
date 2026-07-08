@@ -8,7 +8,7 @@
 #
 # Armazenamento é EFÊMERO por design (sessão + TTL): sem [mounts]/volume.
 
-app = "gedocs-web"
+app = "gedoc-search"
 primary_region = "gru"
 
 [build]
