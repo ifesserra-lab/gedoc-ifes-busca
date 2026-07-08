@@ -55,8 +55,19 @@ const temItens = computed(
   () => props.resultado?.categorias.some((grupo) => grupo.itens.length > 0) ?? false,
 );
 
+/** US7 — o relatório consolida os RESUMOS da IA; só faz sentido (e só é
+ * habilitado) quando a busca atual foi feita no modo IA. Sem IA não há
+ * resumos para consolidar. */
+const relatorioHabilitado = computed(() => temItens.value && store.resultadoComIa);
+const dicaRelatorio = computed(() =>
+  store.resultadoComIa
+    ? "Gera um relatório consolidado (HTML) com os resumos, agrupado por categoria."
+    : "Disponível apenas no modo IA: ative a IA na busca para gerar o relatório (ele consolida os resumos).",
+);
+
 async function baixarRelatorio(): Promise<void> {
-  if (!props.resultado || !temItens.value || estadoRelatorio.value === "processando") return;
+  if (!props.resultado || !relatorioHabilitado.value || estadoRelatorio.value === "processando")
+    return;
 
   estadoRelatorio.value = "processando";
   erroRelatorio.value = null;
@@ -87,12 +98,7 @@ async function baixarDocumentosZip(): Promise<void> {
 <template>
   <div class="relatorio-acoes">
     <div class="relatorio-acoes__botoes">
-      <UTooltip
-        :text="
-          erroRelatorio ??
-          'Gera um relatório consolidado (HTML) com os resumos, agrupado por categoria.'
-        "
-      >
+      <UTooltip :text="erroRelatorio ?? dicaRelatorio">
         <UButton
           icon="i-lucide-file-text"
           :color="estadoRelatorio === 'erro' ? 'error' : 'neutral'"
@@ -100,7 +106,7 @@ async function baixarDocumentosZip(): Promise<void> {
           size="sm"
           class="alvo-minimo"
           :loading="estadoRelatorio === 'processando'"
-          :disabled="!temItens || estadoRelatorio === 'processando'"
+          :disabled="!relatorioHabilitado || estadoRelatorio === 'processando'"
           @click="baixarRelatorio"
         >
           {{ estadoRelatorio === "processando" ? "Gerando..." : "Baixar relatório" }}

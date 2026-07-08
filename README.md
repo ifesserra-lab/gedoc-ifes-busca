@@ -11,6 +11,26 @@ interface única.
 > (`jsessionid`) e requisições AJAX parciais; os ids do formulário são
 > descobertos dinamicamente em runtime (resistem a redeploy do servidor).
 
+## Versão Web (online)
+
+Além do app desktop, há uma **versão web** — a mesma busca por SIAPE direto no
+navegador, sem instalar nada:
+
+- **App:** <https://gedocs.vercel.app>
+- **API:** <https://gedoc-search-api.onrender.com> (health: `/api/health`)
+
+Uso interno, **sem login**: cada visitante recebe uma sessão efêmera; os PDFs
+(dados pessoais de terceiros) ficam isolados por sessão e são apagados por TTL
+(~1h) — conformidade com a LGPD. Frontend estático na **Vercel**, API (Docker,
+axum) no **Render**, reusando o mesmo núcleo Rust do desktop (crate
+`gedocs-core`, sem Tauri). Arquitetura e decisões em
+[docs/plano-web.md](docs/plano-web.md) e [specs/003-versao-web/](specs/003-versao-web/).
+
+> O **relatório** consolida os resumos da IA — ative o **modo IA** na busca para
+> habilitá-lo. Sem IA (modo keyword) a busca/PDF/ZIP funcionam normalmente.
+> No plano free do Render, a API hiberna após ~15 min ociosa: a primeira busca
+> depois disso leva ~30–60 s (cold start).
+
 ## Download / Instaladores
 
 Baixe o instalador pronto na

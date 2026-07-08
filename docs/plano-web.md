@@ -15,8 +15,15 @@ existente.
 > rede), `ipc.ts` 7/7 (vitest); desktop `src-tauri` compila. Smoke local OK
 > (health / SIAPE inválido / busca real / categorias + cookie). Deploy:
 > [`vercel.json`](../vercel.json), [`Dockerfile`](../server/Dockerfile),
-> [`fly.toml`](../server/fly.toml). Pendente: teste do modo IA via HTTP
-> (`tasks.md` T024) e o deploy real. 42 issues: #34–#75.
+> [`fly.toml`](../server/fly.toml) e [`render.yaml`](../render.yaml).
+>
+> **No ar (produção):** frontend na **Vercel** <https://gedocs.vercel.app> +
+> API (Docker) no **Render** <https://gedoc-search-api.onrender.com>, com
+> **CI→deploy** automático a cada push em `main` ([deploy.yml](../.github/workflows/deploy.yml)).
+> Testado ponta-a-ponta (busca, IA 28/28 resumos, PDF, relatório, ZIP,
+> sessão cross-site). O **relatório** é habilitado na tela **só no modo IA**
+> (consolida os resumos). Pendente: teste do modo IA via HTTP
+> (`tasks.md` T024). 42 issues: #34–#75.
 
 ## 1. Ponto de partida (o que já existe)
 
