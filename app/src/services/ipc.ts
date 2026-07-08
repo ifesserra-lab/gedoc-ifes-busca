@@ -13,8 +13,9 @@ const API_BASE = (
     ?.VITE_API_URL ?? ""
 ).replace(/\/+$/, "");
 
-/** Runtime Tauri? (desktop) — senão, modo web. */
-function emTauri(): boolean {
+/** Runtime Tauri? (desktop) — senão, modo web. Exportado para a View/router
+ * condicionarem recursos só-desktop (ex.: gestão de categorias). */
+export function emTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
