@@ -1,8 +1,59 @@
-// Wrapper tipado de `invoke()` — única porta de entrada para o IPC Tauri.
-// Nenhum `.vue`/store deve chamar `invoke` diretamente (ver
-// contracts/ipc-commands.md).
+// Porta única de acesso ao backend — dual-mode (US web 003):
+//  - Desktop (Tauri): `invoke()` dos comandos IPC.
+//  - Web (navegador): `fetch()` da API HTTP (crate `server/`), escolhido em
+//    runtime por `emTauri()`. As assinaturas exportadas são idênticas nos dois
+//    modos, então stores/views não mudam.
+// Nenhum `.vue`/store deve chamar `invoke`/`fetch` diretamente.
 
 import { invoke } from "@tauri-apps/api/core";
+
+/** Base da API web (Vercel → container). Vazio no desktop. */
+const API_BASE = (
+  (import.meta as unknown as { env?: Record<string, string | undefined> }).env
+    ?.VITE_API_URL ?? ""
+).replace(/\/+$/, "");
+
+/** Runtime Tauri? (desktop) — senão, modo web. */
+function emTauri(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+/**
+ * `fetch` da API web. Envia o cookie de sessão (`credentials: "include"`) e,
+ * em erro, rejeita com o MESMO payload `{tipo,mensagem}` do IPC — assim
+ * `mensagemDeErro` funciona igual nos dois modos.
+ */
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const resp = await fetch(`${API_BASE}${path}`, {
+    credentials: "include",
+    headers:
+      init?.body != null
+        ? { "Content-Type": "application/json", ...(init?.headers ?? {}) }
+        : init?.headers,
+    ...init,
+  });
+  if (!resp.ok) {
+    throw await erroDaResposta(resp);
+  }
+  return (await resp.json()) as T;
+}
+
+/** Extrai o `AppErrorPayload` do corpo de uma resposta não-ok. */
+async function erroDaResposta(resp: Response): Promise<unknown> {
+  try {
+    return await resp.json();
+  } catch {
+    return {
+      tipo: "FalhaPortal",
+      mensagem: { motivo: `HTTP ${resp.status}` },
+    } satisfies AppErrorPayload;
+  }
+}
+
+/** URL absoluta de um endpoint da API web (para `window.open`). */
+function apiUrl(path: string): string {
+  return `${API_BASE}${path}`;
+}
 
 export interface BuscarPorSiapeInput {
   siape: string;
@@ -50,7 +101,7 @@ function ehAppErrorPayload(valor: unknown): valor is AppErrorPayload {
   return typeof valor === "object" && valor !== null && "tipo" in valor;
 }
 
-/** Converte o erro (rejeição de `invoke`) numa mensagem amigável, sem stack trace. */
+/** Converte o erro (rejeição de `invoke`/`fetch`) numa mensagem amigável, sem stack trace. */
 export function mensagemDeErro(erro: unknown): string {
   if (!ehAppErrorPayload(erro)) {
     return "Erro inesperado ao comunicar com o backend.";
@@ -81,7 +132,11 @@ export function mensagemDeErro(erro: unknown): string {
  * categoria; erros chegam como `AppError` (ver `mensagemDeErro`).
  */
 export async function buscarPorSiape(input: BuscarPorSiapeInput): Promise<ResultadoView> {
-  return invoke<ResultadoView>("buscar_por_siape", { input });
+  if (emTauri()) return invoke<ResultadoView>("buscar_por_siape", { input });
+  return apiFetch<ResultadoView>("/api/buscar", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export interface BaixarDocumentoInput {
@@ -97,21 +152,30 @@ export interface AbrirDocumentoInput {
 }
 
 /**
- * US4 — baixa o PDF de um documento para o diretório de dados do app
- * (nunca o repositório — PII de terceiros, R7) e devolve só o **nome** do
+ * US4 — baixa o PDF de um documento para o armazenamento (desktop: dir do app;
+ * web: dir da sessão — PII de terceiros, R7/LGPD) e devolve só o **nome** do
  * arquivo gravado (nunca o caminho absoluto).
  */
 export async function baixarDocumento(input: BaixarDocumentoInput): Promise<string> {
-  return invoke<string>("baixar_documento", { input });
+  if (emTauri()) return invoke<string>("baixar_documento", { input });
+  const r = await apiFetch<{ arquivo: string }>("/api/documento/baixar", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return r.arquivo;
 }
 
 /**
- * US4 — abre, com o aplicativo padrão do sistema, um PDF já baixado.
- * `arquivo` é o nome devolvido por `baixarDocumento` (sanitizado no backend,
- * R7); nunca um caminho arbitrário.
+ * US4 — abre um PDF já baixado. Desktop: app padrão do sistema. Web: nova aba
+ * do navegador (`GET /api/documento/:siape/:arquivo`). `arquivo` é o nome
+ * devolvido por `baixarDocumento` (sanitizado no backend, R7).
  */
 export async function abrirDocumento(input: AbrirDocumentoInput): Promise<void> {
-  return invoke<void>("abrir_documento", { input });
+  if (emTauri()) return invoke<void>("abrir_documento", { input });
+  const url = apiUrl(
+    `/api/documento/${encodeURIComponent(input.siape)}/${encodeURIComponent(input.arquivo)}`,
+  );
+  window.open(url, "_blank", "noopener");
 }
 
 export interface Categoria {
@@ -125,13 +189,13 @@ export interface SalvarCategoriasResposta {
 }
 
 /**
- * US8 — lista as categorias persistidas (`AppHandle.path().app_config_dir()/categoria.json`,
- * semeado a partir do `config/categoria.json` empacotado na primeira
- * execução — ver `commands::categorias` no backend). Lista vazia é um
- * resultado válido (estado "vazio" da tela), não um erro.
+ * US8 — lista as categorias persistidas (desktop: `app_config_dir`; web:
+ * arquivo global no servidor, semeado de `config/categoria.json`). Lista vazia
+ * é um resultado válido (estado "vazio" da tela), não um erro.
  */
 export async function listarCategorias(): Promise<Categoria[]> {
-  return invoke<Categoria[]>("listar_categorias");
+  if (emTauri()) return invoke<Categoria[]>("listar_categorias");
+  return apiFetch<Categoria[]>("/api/categorias");
 }
 
 /**
@@ -141,27 +205,50 @@ export async function listarCategorias(): Promise<Categoria[]> {
  * `NomeDuplicado`).
  */
 export async function salvarCategorias(categorias: Categoria[]): Promise<SalvarCategoriasResposta> {
-  return invoke<SalvarCategoriasResposta>("salvar_categorias", { categorias });
+  if (emTauri()) return invoke<SalvarCategoriasResposta>("salvar_categorias", { categorias });
+  return apiFetch<SalvarCategoriasResposta>("/api/categorias", {
+    method: "PUT",
+    body: JSON.stringify(categorias),
+  });
 }
 
 /**
- * US7 — gera o relatório consolidado (Markdown + HTML self-contained, ver
- * decisão de PDF em `services::relatorio` no backend: nada de Chrome
- * headless) a partir do MESMO `resultado` já mostrado na tela (R1 — reflete
- * os resumos reais, sem refazer a busca) e abre o HTML com o app padrão do
- * sistema. Devolve só o **nome** do arquivo gravado (nunca o caminho
- * absoluto — R7), salvo em `<app_data_dir>/relatorios/`.
+ * US7 — gera o relatório consolidado (Markdown + HTML self-contained) a partir
+ * do MESMO `resultado` já mostrado na tela (R1) e o abre (desktop: app padrão;
+ * web: nova aba, `GET /api/relatorio/:siape`). Devolve o **nome** do arquivo.
  */
 export async function gerarRelatorio(resultado: ResultadoView): Promise<string> {
-  return invoke<string>("gerar_relatorio", { resultado });
+  if (emTauri()) return invoke<string>("gerar_relatorio", { resultado });
+  const r = await apiFetch<{ arquivo: string }>("/api/relatorio", {
+    method: "POST",
+    body: JSON.stringify(resultado),
+  });
+  window.open(apiUrl(`/api/relatorio/${encodeURIComponent(resultado.termo)}`), "_blank", "noopener");
+  return r.arquivo;
 }
 
 /**
- * US7 — monta um ZIP com todos os PDFs já baixados (US4) para `siape` em
- * `<app_data_dir>/relatorios/<siape>_documentos.zip` e revela o arquivo no
- * gerenciador de arquivos do SO. Sem nenhum PDF baixado ainda, rejeita com
- * `FalhaArquivo` (mensagem amigável — ver `mensagemDeErro`).
+ * US7 — monta um ZIP com os PDFs já baixados para `siape` (desktop: revela no
+ * gerenciador de arquivos; web: baixa o `.zip`). Sem nenhum PDF baixado na
+ * sessão, rejeita com `FalhaArquivo` (mensagem amigável — ver `mensagemDeErro`).
  */
 export async function baixarZip(siape: string): Promise<string> {
-  return invoke<string>("baixar_zip", { siape });
+  if (emTauri()) return invoke<string>("baixar_zip", { siape });
+
+  const resp = await fetch(apiUrl(`/api/zip/${encodeURIComponent(siape)}`), {
+    credentials: "include",
+  });
+  if (!resp.ok) throw await erroDaResposta(resp);
+
+  const nome = `${siape}_documentos.zip`;
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nome;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  return nome;
 }

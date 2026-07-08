@@ -1,0 +1,34 @@
+[package]
+name = "gedocs-server"
+version = "0.1.0"
+edition = "2021"
+description = "API HTTP (axum) do GeDoc IFES Toolkit — reusa o núcleo Rust do app Tauri para a versão web."
+
+[lib]
+name = "gedocs_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "gedocs-server"
+path = "src/main.rs"
+
+[dependencies]
+# Reusa o núcleo puro do app desktop (domain/services/ports/error + use-cases
+# `executar*`). Nada de regra de negócio é reimplementado aqui.
+# Package `gedocs`, lib `gedocs_lib` — dep key = nome do package; `use` = nome da lib.
+gedocs = { path = "../src-tauri" }
+
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "limit", "trace"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+tempfile = "3"

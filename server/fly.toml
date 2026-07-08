@@ -1,0 +1,35 @@
+# Exemplo de deploy da API web no Fly.io. Ajuste `app` e a região.
+# Build: `fly deploy` a partir da RAIZ do repo apontando este Dockerfile:
+#   fly deploy --dockerfile server/Dockerfile --config server/fly.toml
+#
+# Segredos/vars (não versionar):
+#   fly secrets set MISTRAL_API_KEY=...            # opcional (modo IA)
+#   fly secrets set GEDOCS_CORS_ORIGIN=https://<seu-front>.vercel.app
+#
+# Armazenamento é EFÊMERO por design (sessão + TTL): sem [mounts]/volume.
+
+app = "gedocs-web"
+primary_region = "gru"
+
+[build]
+  dockerfile = "server/Dockerfile"
+
+[env]
+  GEDOCS_BIND = "0.0.0.0:8787"
+  GEDOCS_DATA_DIR = "/tmp/gedocs-data"
+  GEDOCS_SESSION_TTL = "3600"
+  GEDOCS_SECURE_COOKIE = "true"
+  GEDOCS_CATEGORIAS_SEED = "/app/config/categoria.json"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/api/health"
+    interval = "30s"
+    timeout = "5s"
