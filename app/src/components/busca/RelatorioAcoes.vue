@@ -55,24 +55,35 @@ const temItens = computed(
   () => props.resultado?.categorias.some((grupo) => grupo.itens.length > 0) ?? false,
 );
 
-/** US7 — o relatório consolida os RESUMOS da IA; só faz sentido (e só é
- * habilitado) quando a busca atual foi feita no modo IA. Sem IA não há
- * resumos para consolidar. */
-const relatorioHabilitado = computed(() => temItens.value && store.resultadoComIa);
+/** US7 — o relatório consolida os RESUMOS da IA. Se a busca atual não foi no
+ * modo IA, clicar EXECUTA a IA (re-busca em modo llm) antes de gerar. */
 const dicaRelatorio = computed(() =>
   store.resultadoComIa
     ? "Gera um relatório consolidado (HTML) com os resumos, agrupado por categoria."
-    : "Disponível apenas no modo IA: ative a IA na busca para gerar o relatório (ele consolida os resumos).",
+    : "Executa a IA (resume os documentos) e gera o relatório consolidado — pode levar um tempo.",
 );
 
 async function baixarRelatorio(): Promise<void> {
-  if (!props.resultado || !relatorioHabilitado.value || estadoRelatorio.value === "processando")
-    return;
+  if (!props.resultado || !temItens.value || estadoRelatorio.value === "processando") return;
 
   estadoRelatorio.value = "processando";
   erroRelatorio.value = null;
   try {
-    await gerarRelatorio(props.resultado);
+    // O relatório consolida os resumos da IA. Se a busca atual não foi no modo
+    // IA, roda a IA agora (re-busca em modo llm) antes de gerar — assim o
+    // relatório sai com os resumos.
+    if (!store.resultadoComIa) {
+      const antes = store.usarIa;
+      store.usarIa = true;
+      await store.buscar();
+      store.usarIa = antes;
+      if (store.estado !== "resultado" || !store.resultado) {
+        estadoRelatorio.value = "erro";
+        erroRelatorio.value = store.erro ?? "Falha ao executar a IA para o relatório.";
+        return;
+      }
+    }
+    await gerarRelatorio(store.resultado ?? props.resultado);
     estadoRelatorio.value = "idle";
   } catch (motivo) {
     estadoRelatorio.value = "erro";
@@ -106,7 +117,7 @@ async function baixarDocumentosZip(): Promise<void> {
           size="sm"
           class="alvo-minimo"
           :loading="estadoRelatorio === 'processando'"
-          :disabled="!relatorioHabilitado || estadoRelatorio === 'processando'"
+          :disabled="!temItens || estadoRelatorio === 'processando'"
           @click="baixarRelatorio"
         >
           {{ estadoRelatorio === "processando" ? "Gerando..." : "Baixar relatório" }}

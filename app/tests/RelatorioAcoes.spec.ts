@@ -97,12 +97,26 @@ describe("RelatorioAcoes", () => {
     expect(zip.classes()).toContain("alvo-minimo");
   });
 
-  it("busca sem IA (keyword) mantém o relatório desabilitado; ZIP segue habilitado (US7)", () => {
+  it("busca sem IA: botão do relatório fica habilitado (clicar executa a IA)", () => {
     const wrapper = montar(resultadoCom(), false);
 
     const { relatorio, zip } = botoes(wrapper);
-    expect(relatorio.attributes("disabled")).toBeDefined();
+    expect(relatorio.attributes("disabled")).toBeUndefined();
     expect(zip.attributes("disabled")).toBeUndefined();
+  });
+
+  it("busca sem IA: clicar em 'Baixar relatório' executa a IA (modo llm) e então gera", async () => {
+    const store = useBuscaStore();
+    store.siape = "1998547";
+    const buscarSpy = vi.spyOn(ipc, "buscarPorSiape").mockResolvedValue(resultadoCom());
+    const gerarSpy = vi.spyOn(ipc, "gerarRelatorio").mockResolvedValue("1998547_relatorio.html");
+    const wrapper = montar(resultadoCom(), false);
+
+    await botoes(wrapper).relatorio.trigger("click");
+    await flushPromises();
+
+    expect(buscarSpy).toHaveBeenCalledWith(expect.objectContaining({ modo: "llm" }));
+    expect(gerarSpy).toHaveBeenCalled();
   });
 
   it("clicar em 'Baixar relatório' chama gerarRelatorio com o resultado atual", async () => {
