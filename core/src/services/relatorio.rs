@@ -36,32 +36,60 @@ use crate::dto::ResultadoView;
 
 const SEM_RESUMO: &str = "_(sem resumo)_";
 
-/// CSS A4 inline (mesma paleta/regras de `src/md_para_pdf.py::CSS`), para o
-/// HTML ficar bem formatado tanto na tela quanto ao imprimir/"Salvar como
-/// PDF". Sem fontes/assets externos — self-contained (Princípio II: nada
-/// deste HTML depende de rede para renderizar).
+/// CSS A4 inline, para o HTML ficar bem formatado tanto na tela quanto ao
+/// imprimir/"Salvar como PDF". Sem fontes/assets externos — self-contained
+/// (Princípio II: nada deste HTML depende de rede para renderizar).
+/// Tokens espelhados do design system do app (`app/src/assets/tokens.css`,
+/// fonte da verdade em `specs/002-ui-nuxt-minimalista/design-tokens.md`):
+/// acento verde-pinho IFES, neutros com viés verde, tipografia Inter. Como o
+/// relatório é self-contained, os tokens são **embutidos** aqui (não dá para
+/// referenciar o CSS do app). Tema claro (`:root`) + escuro
+/// (`prefers-color-scheme`) + impressão (`@media print`, força claro para PDF
+/// legível). `Inter` no topo do stack cai para fonte de sistema se ausente
+/// (não embutimos o arquivo, para manter o HTML pequeno).
 const CSS: &str = r#"
+  :root {
+    --paper:#f6f8f6; --surface:#ffffff; --surface-2:#f0f4f1;
+    --ink:#14211b; --muted:#5e6b64; --border:#e4eae5;
+    --accent:#17784e; --accent-soft:#e7f1ec;
+    --sans:"Inter",-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:#0e1512; --surface:#151e1a; --surface-2:#1b2621;
+      --ink:#e8eeea; --muted:#93a79c; --border:#27332c;
+      --accent:#34b37e; --accent-soft:#122a20;
+    }
+  }
   @page { size: A4; margin: 18mm 16mm; }
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-         color: #1a2330; line-height: 1.5; font-size: 11pt; margin: 0 auto;
-         max-width: 860px; padding: 24px; }
-  h1 { font-size: 20pt; color: #0b5cad; border-bottom: 2px solid #0b5cad;
-       padding-bottom: 6px; }
-  h2 { font-size: 15pt; color: #0b5cad; margin-top: 22px;
-       border-bottom: 1px solid #e5e9ef; padding-bottom: 4px;
+  body { font-family: var(--sans); background: var(--paper); color: var(--ink);
+         line-height: 1.55; font-size: 11pt; margin: 0 auto; max-width: 860px;
+         padding: 32px; }
+  h1 { font-size: 26px; color: var(--accent); letter-spacing: -0.01em;
+       border-bottom: 2px solid var(--accent); padding-bottom: 8px; }
+  h2 { font-size: 19px; color: var(--accent); margin-top: 28px;
+       border-bottom: 1px solid var(--border); padding-bottom: 6px;
        page-break-before: always; }
   h2:first-of-type { page-break-before: avoid; }
-  h3 { font-size: 12pt; margin: 16px 0 4px; page-break-after: avoid; }
-  p { margin: 4px 0 10px; }
-  a { color: #0b5cad; text-decoration: none; }
-  table { border-collapse: collapse; width: 100%; margin: 10px 0; }
-  th, td { border: 1px solid #d7dde6; padding: 6px 10px; text-align: left; }
-  th { background: #eef2f7; }
-  td:last-child, th:last-child { text-align: right; }
-  code { background: #f1f4f8; padding: 1px 5px; border-radius: 4px;
-         font-size: 9.5pt; }
-  h3 + p { color: #5a6474; font-size: 9.5pt; }
+  h3 { font-size: 15px; color: var(--ink); margin: 18px 0 4px;
+       page-break-after: avoid; }
+  p { margin: 4px 0 12px; }
+  a { color: var(--accent); text-decoration: none; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+  th { background: var(--surface-2); font-weight: 600; }
+  td:last-child, th:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  code { background: var(--surface-2); color: var(--muted); padding: 1px 6px;
+         border-radius: 6px; font-family: var(--mono); font-size: 12px; }
+  h3 + p { color: var(--muted); font-size: 13px; }
+  /* Impressão: força claro (telas escuras imprimem legível) + sem padding. */
+  @media print {
+    :root { --paper:#ffffff; --surface:#ffffff; --surface-2:#f0f4f1;
+            --ink:#14211b; --muted:#5e6b64; --border:#d7dde6; --accent:#125f3d; }
+    body { padding: 0; }
+  }
 "#;
 
 /// Gera o Markdown do relatório a partir de uma `ResultadoView` já montada
@@ -418,6 +446,25 @@ mod tests {
         assert!(html.contains("<style>"));
         assert!(!html.contains("<script")); // sem asset/JS externo
         assert!(!html.contains("http://") && !html.contains("https://"));
+    }
+
+    #[test]
+    fn html_usa_o_design_system_do_app_e_suporta_tema_escuro() {
+        let html = markdown_para_html("# T\n\ntexto", "Relatório");
+
+        // Tokens do app (acento verde-pinho IFES) + tipografia Inter (FR-001).
+        assert!(
+            html.contains("--accent"),
+            "deve usar os tokens de cor do app"
+        );
+        assert!(html.contains("#17784e"), "acento do design (claro)");
+        assert!(html.contains("Inter"), "tipografia do app");
+        // Tema escuro (FR-002) e impressão legível (FR-005).
+        assert!(html.contains("prefers-color-scheme: dark"));
+        assert!(html.contains("@media print"));
+        // Self-contained (FR-003): nenhum import/asset externo de estilo/fonte.
+        assert!(!html.contains("@import"));
+        assert!(!html.contains("url(http"));
     }
 
     #[test]
