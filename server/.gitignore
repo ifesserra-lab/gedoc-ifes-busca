@@ -1,0 +1,8 @@
+/target
+**/*.rs.bk
+*.pdb
+# Dados efêmeros da API (PII de terceiros — Princípio II/LGPD): nunca versionar
+/data-web
+data-web/
+.env
+.env.*

@@ -3,9 +3,9 @@
 //! classifica um Documento em exatamente uma Categoria; sem casamento, cai
 //! em "Outros".
 
-use gedocs_lib::domain::categoria::{Categoria, OUTROS};
-use gedocs_lib::domain::documento::Documento;
-use gedocs_lib::ports::classificador::{Classificador, ClassificadorPalavraChave};
+use gedocs_core::domain::categoria::{Categoria, OUTROS};
+use gedocs_core::domain::documento::Documento;
+use gedocs_core::ports::classificador::{Classificador, ClassificadorPalavraChave};
 
 fn categorias_padrao() -> Vec<Categoria> {
     vec![

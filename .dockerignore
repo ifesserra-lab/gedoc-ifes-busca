@@ -1,0 +1,11 @@
+# Contexto de build da API (server/Dockerfile) = raiz do repo.
+**/target
+**/node_modules
+app/dist
+data
+server/data-web
+.git
+.github
+docs
+specs
+prototipo

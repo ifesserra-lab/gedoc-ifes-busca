@@ -1430,16 +1430,24 @@ dependencies = [
 name = "gedocs"
 version = "0.1.0"
 dependencies = [
+ "gedocs-core",
+ "serde",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
+ "tokio",
+]
+
+[[package]]
+name = "gedocs-core"
+version = "0.1.0"
+dependencies = [
  "pdf-extract",
  "pulldown-cmark",
  "regex",
  "reqwest",
  "serde",
  "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-opener",
- "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "zip",

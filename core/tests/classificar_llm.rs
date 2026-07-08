@@ -5,13 +5,13 @@
 
 use std::cell::RefCell;
 
-use gedocs_lib::domain::categoria::{Categoria, OUTROS};
-use gedocs_lib::domain::documento::Documento;
-use gedocs_lib::error::AppError;
-use gedocs_lib::ports::classificador::{Classificador, ClassificadorLlm};
-use gedocs_lib::ports::ia::ChatIa;
-use gedocs_lib::services::cache::CacheArquivo;
-use gedocs_lib::services::classificador::{classificar_lote, ModoClassificacao};
+use gedocs_core::domain::categoria::{Categoria, OUTROS};
+use gedocs_core::domain::documento::Documento;
+use gedocs_core::error::AppError;
+use gedocs_core::ports::classificador::{Classificador, ClassificadorLlm};
+use gedocs_core::ports::ia::ChatIa;
+use gedocs_core::services::cache::CacheArquivo;
+use gedocs_core::services::classificador::{classificar_lote, ModoClassificacao};
 
 struct ChatFake {
     resposta: String,

@@ -1,0 +1,25 @@
+[package]
+name = "gedocs-core"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+description = "Núcleo do GeDoc IFES Toolkit (domínio, serviços, ports, use-cases) — SEM Tauri, reutilizável por desktop (src-tauri) e web (server)."
+
+[lib]
+name = "gedocs_core"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+regex = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "cookies", "rustls", "gzip", "form"] }
+pdf-extract = "0.12"
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+zip = { version = "2", default-features = false }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tempfile = "3"

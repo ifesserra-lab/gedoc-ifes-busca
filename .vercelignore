@@ -1,0 +1,17 @@
+# Vercel builda só o frontend (`cd app && npm install && npm run build`).
+# Ignora tudo que não é necessário pro build do frontend (reduz o upload).
+.git
+.github
+.claude
+.specify
+**/target
+**/node_modules
+app/dist
+data
+prototipo
+docs
+specs
+core
+server
+src-tauri
+config
