@@ -68,7 +68,16 @@ async fn rate_limit_mw(
     req: Request,
     next: Next,
 ) -> Response {
-    let ip = addr.ip().to_string();
+    // Atrás dos proxies de Fly/Render o socket é o IP do proxy; o IP real do
+    // cliente vem em `X-Forwarded-For` (1º item). Cai no socket em dev/local.
+    let ip = req
+        .headers()
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| addr.ip().to_string());
     let janela = now_secs() / 60;
     let excedeu = {
         let mut m = st.rate.lock().unwrap();

@@ -20,9 +20,12 @@ Decisão / Justificativa / Alternativas.
 
 ## R2. Mecanismo de sessão sem login
 
-- **Decisão**: cookie opaco `gedocs_sid` (valor aleatório), `HttpOnly`,
-  `SameSite=Lax`, `Secure` em produção. Emitido pelo servidor no primeiro
-  acesso. Mapeia para `<data>/sessions/<sid>/`.
+- **Decisão**: cookie opaco `gedocs_sid` (valor aleatório), `HttpOnly`.
+  Em produção o front (Vercel) e a API (Render/Fly) ficam em domínios
+  diferentes → o cookie precisa ser `SameSite=None; Secure` para voltar no
+  `fetch` cross-site (com `Lax` o navegador não o envia e a sessão nunca
+  persiste). Em dev local (same-site) usa `SameSite=Lax`. Emitido no 1º
+  acesso; mapeia para `<data>/sessions/<sid>/`.
 - **Justificativa**: sem login, o cookie é o portador natural da
   identidade efêmera; opaco e `HttpOnly` evita manipulação/XSS. Isola PII
   por sessão (Princípio II, FR-011).

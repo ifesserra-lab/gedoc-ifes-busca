@@ -37,10 +37,8 @@ pub fn limpar_uma_vez(state: &AppState) -> usize {
             .ok()
             .and_then(|s| s.trim().parse::<u64>().ok())
             .unwrap_or(0);
-        if agora.saturating_sub(last) > ttl {
-            if std::fs::remove_dir_all(&dir).is_ok() {
-                removidas += 1;
-            }
+        if agora.saturating_sub(last) > ttl && std::fs::remove_dir_all(&dir).is_ok() {
+            removidas += 1;
         }
     }
     removidas

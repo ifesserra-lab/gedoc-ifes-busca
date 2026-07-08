@@ -365,7 +365,11 @@ mod tests {
         )
         .expect("deve montar resultado");
 
-        assert_eq!(resultado.categorias.len(), 2, "grupo vazio (Comissão) é omitido");
+        assert_eq!(
+            resultado.categorias.len(),
+            2,
+            "grupo vazio (Comissão) é omitido"
+        );
         assert_eq!(resultado.categorias[0].categoria, "Progressão");
         assert_eq!(resultado.categorias[1].categoria, OUTROS);
     }
@@ -534,7 +538,10 @@ mod tests {
         let grupo = &resultado.categorias[0];
         assert_eq!(grupo.categoria, SEM_CATEGORIA);
         assert_eq!(grupo.qtd, 1);
-        assert_eq!(grupo.itens[0].titulo, "DESPACHO Nº 2 - 2024 - Encaminhamento");
+        assert_eq!(
+            grupo.itens[0].titulo,
+            "DESPACHO Nº 2 - 2024 - Encaminhamento"
+        );
         assert!(grupo.itens[0].arquivo.is_none());
         assert!(grupo.itens[0].resumo.is_none());
         assert!(!resultado.tem_pdf);
@@ -589,7 +596,11 @@ mod tests {
         ];
         let resultado = montar_resultado("1998547", 2, vec![doc_a, doc_b], &ordem);
 
-        assert_eq!(resultado.categorias.len(), 2, "Comissão fica vazia e é omitida");
+        assert_eq!(
+            resultado.categorias.len(),
+            2,
+            "Comissão fica vazia e é omitida"
+        );
         assert_eq!(resultado.categorias[0].categoria, "Progressão");
         assert_eq!(resultado.categorias[1].categoria, "Outros");
     }

@@ -83,3 +83,70 @@ jobs:
       - name: Checagem de tipos (vue-tsc)
         working-directory: app
         run: npx vue-tsc --noEmit
+
+  core:
+    name: Core (Rust — core, sem Tauri)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # Sem WebKit: o core não liga Tauri. cmake/clang para aws-lc-sys (rustls).
+      - name: Instalar deps de build
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential cmake clang
+
+      - name: Instalar toolchain Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache do cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Formatação (rustfmt)
+        working-directory: core
+        run: cargo fmt --check
+
+      - name: Lint (clippy, warnings = erro)
+        working-directory: core
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Testes (offline)
+        working-directory: core
+        run: cargo test
+
+  server:
+    name: Backend web (Rust — server, sem Tauri)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar deps de build
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential cmake clang
+
+      - name: Instalar toolchain Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache do cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+
+      - name: Formatação (rustfmt)
+        working-directory: server
+        run: cargo fmt --check
+
+      - name: Lint (clippy, warnings = erro)
+        working-directory: server
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Testes (offline)
+        working-directory: server
+        run: cargo test

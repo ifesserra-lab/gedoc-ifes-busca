@@ -11,7 +11,10 @@ use axum::{
 use serde_json::json;
 
 use gedocs_core::domain::categoria::Categoria;
-use gedocs_core::dto::{AbrirDocumentoInput, BaixarDocumentoInput, BuscarPorSiapeInput, ResultadoView};
+use gedocs_core::domain::siape::eh_siape;
+use gedocs_core::dto::{
+    AbrirDocumentoInput, BaixarDocumentoInput, BuscarPorSiapeInput, ResultadoView,
+};
 use gedocs_core::error::AppError;
 use gedocs_core::ports::http::ReqwestHttp;
 use gedocs_core::services::categorias;
@@ -35,11 +38,6 @@ fn erro_interno(msg: impl std::fmt::Display) -> AppError {
     AppError::FalhaArquivo {
         motivo: msg.to_string(),
     }
-}
-
-/// SIAPE só dígitos — barra path traversal em params de rota (`:siape`).
-fn siape_ok(s: &str) -> bool {
-    !s.is_empty() && s.chars().all(|c| c.is_ascii_digit())
 }
 
 fn arquivo_resp(bytes: Vec<u8>, content_type: &str, disposition: &str) -> Response {
@@ -140,7 +138,7 @@ pub async fn servir_relatorio(
     Extension(sess): Extension<SessionCtx>,
     Path(siape): Path<String>,
 ) -> Response {
-    if !siape_ok(&siape) {
+    if !eh_siape(&siape) {
         return resposta(
             &AppError::SiapeInvalido { termo: siape },
             StatusCode::BAD_REQUEST,
@@ -167,7 +165,7 @@ pub async fn baixar_zip(
     Extension(sess): Extension<SessionCtx>,
     Path(siape): Path<String>,
 ) -> Response {
-    if !siape_ok(&siape) {
+    if !eh_siape(&siape) {
         return resposta(
             &AppError::SiapeInvalido { termo: siape },
             StatusCode::BAD_REQUEST,
@@ -216,12 +214,13 @@ pub async fn salvar_categorias(
 
 // ---------------------------------------------------------------- rate limit //
 
-/// 429 amigável (tipo `FalhaPortal` para reusar `mensagemDeErro` no front).
+/// 429 amigável — tipo próprio `LimiteTaxa` (não culpa o portal); o front
+/// mapeia em `mensagemDeErro`.
 pub fn resposta_rate_limit() -> Response {
     (
         StatusCode::TOO_MANY_REQUESTS,
         Json(json!({
-            "tipo": "FalhaPortal",
+            "tipo": "LimiteTaxa",
             "mensagem": {"motivo": "Muitas requisições. Tente novamente em instantes."}
         })),
     )

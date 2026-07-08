@@ -5,8 +5,10 @@ Espelha os comandos IPC do desktop (ver `contracts/ipc-commands.md` da
 
 ## Sessão (transversal)
 
-- Toda resposta pode emitir/renovar o cookie `gedocs_sid` (`HttpOnly`,
-  `SameSite=Lax`, `Secure` em produção).
+- Toda resposta pode emitir/renovar o cookie `gedocs_sid` (`HttpOnly`;
+  em produção `SameSite=None; Secure` — o front (Vercel) e a API ficam em
+  domínios diferentes, então o cookie precisa cruzar sites no `fetch`; em
+  dev local, same-site, usa `SameSite=Lax`).
 - Requests do frontend usam `credentials: 'include'`.
 - O servidor resolve o diretório da sessão a partir do cookie; arquivos
   são sempre isolados por sessão.

@@ -80,7 +80,10 @@ mod tests {
 
         assert!(matches!(erro, AppError::SiapeInvalido { .. }));
         assert!(
-            fs::read_dir(dir.path()).expect("dir existe").next().is_none(),
+            fs::read_dir(dir.path())
+                .expect("dir existe")
+                .next()
+                .is_none(),
             "não deve gravar nada com SIAPE inválido"
         );
     }

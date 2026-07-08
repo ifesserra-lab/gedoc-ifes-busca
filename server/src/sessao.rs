@@ -72,9 +72,17 @@ pub async fn middleware(State(st): State<AppState>, mut req: Request, next: Next
 
     let mut resp = next.run(req).await;
 
-    let secure = if st.secure_cookie { "; Secure" } else { "" };
     let ttl = st.session_ttl.as_secs();
-    let cookie = format!("{COOKIE}={sid}; Path=/; HttpOnly; SameSite=Lax; Max-Age={ttl}{secure}");
+    // Em produção o front (Vercel) e a API (Render/Fly) ficam em domínios
+    // diferentes: o cookie só volta no `fetch` cross-site se for
+    // `SameSite=None; Secure`. Em dev (same-site localhost) usa `Lax` sem
+    // `Secure`. `secure_cookie` é ligado nos deploys (fly.toml/render.yaml).
+    let atributos = if st.secure_cookie {
+        "SameSite=None; Secure"
+    } else {
+        "SameSite=Lax"
+    };
+    let cookie = format!("{COOKIE}={sid}; Path=/; HttpOnly; {atributos}; Max-Age={ttl}");
     if let Ok(v) = HeaderValue::from_str(&cookie) {
         resp.headers_mut().append(header::SET_COOKIE, v);
     }

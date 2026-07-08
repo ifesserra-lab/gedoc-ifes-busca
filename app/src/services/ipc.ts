@@ -95,7 +95,8 @@ export type AppErrorPayload =
   | { tipo: "CategoriaSemNome"; mensagem: null }
   | { tipo: "NomeDuplicado"; mensagem: { nome: string } }
   | { tipo: "NaoImplementado"; mensagem: string }
-  | { tipo: "FalhaArquivo"; mensagem: { motivo: string } };
+  | { tipo: "FalhaArquivo"; mensagem: { motivo: string } }
+  | { tipo: "LimiteTaxa"; mensagem: { motivo: string } };
 
 function ehAppErrorPayload(valor: unknown): valor is AppErrorPayload {
   return typeof valor === "object" && valor !== null && "tipo" in valor;
@@ -121,6 +122,8 @@ export function mensagemDeErro(erro: unknown): string {
       return `Recurso ainda não implementado: ${erro.mensagem}`;
     case "FalhaArquivo":
       return `Falha ao acessar arquivo: ${erro.mensagem.motivo}`;
+    case "LimiteTaxa":
+      return erro.mensagem.motivo;
     default:
       return "Erro inesperado ao comunicar com o backend.";
   }
