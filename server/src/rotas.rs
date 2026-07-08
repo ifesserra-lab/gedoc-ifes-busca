@@ -3,7 +3,7 @@
 
 use axum::{
     body::Body,
-    extract::{Extension, Path, State},
+    extract::{Extension, Path},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
     Json,
@@ -24,7 +24,6 @@ use gedocs_core::usecases::exportar::executar_gerar_relatorio;
 
 use crate::erro::{resposta, ApiError};
 use crate::sessao::SessionCtx;
-use crate::AppState;
 
 const SUB_DOCS: &str = "documentos";
 const SUB_REL: &str = "relatorios";
@@ -57,7 +56,6 @@ pub async fn health() -> Json<serde_json::Value> {
 // -------------------------------------------------------------------- US1/US4 //
 
 pub async fn buscar(
-    State(st): State<AppState>,
     Extension(sess): Extension<SessionCtx>,
     Json(input): Json<BuscarPorSiapeInput>,
 ) -> Result<Json<ResultadoView>, ApiError> {
@@ -65,7 +63,11 @@ pub async fn buscar(
     let dir_docs = sess.dir.join(SUB_DOCS);
     let cache_cat = Some(sess.dir.join(SUB_CACHE).join("classificacao.json"));
     let cache_res = Some(sess.dir.join(SUB_CACHE).join("resumo.json"));
-    let categorias_path = Some(st.categorias_path());
+    // Categorias sempre do `config/categoria.json` (fonte única; web sem CRUD,
+    // spec 005): `None` faz o núcleo usar `caminho_padrao()` = config, sem cópia
+    // seed em `data/`. Assim adicionar uma categoria no json reflete na
+    // classificação (após deploy), sem estado stale.
+    let categorias_path: Option<std::path::PathBuf> = None;
 
     let resultado = executar(
         &input.siape,
