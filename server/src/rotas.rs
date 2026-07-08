@@ -10,14 +10,12 @@ use axum::{
 };
 use serde_json::json;
 
-use gedocs_core::domain::categoria::Categoria;
 use gedocs_core::domain::siape::eh_siape;
 use gedocs_core::dto::{
     AbrirDocumentoInput, BaixarDocumentoInput, BuscarPorSiapeInput, ResultadoView,
 };
 use gedocs_core::error::AppError;
 use gedocs_core::ports::http::ReqwestHttp;
-use gedocs_core::services::categorias;
 use gedocs_core::services::classificador::ModoClassificacao;
 use gedocs_core::services::empacotador::montar_zip;
 use gedocs_core::usecases::buscar::executar;
@@ -202,22 +200,9 @@ pub async fn baixar_zip(
     }
 }
 
-// --------------------------------------------------------------------- US7 //
-
-pub async fn listar_categorias(
-    State(st): State<AppState>,
-) -> Result<Json<Vec<Categoria>>, ApiError> {
-    let cats = categorias::resolver_com_semente(&st.categorias_path(), &st.seed_categorias)?;
-    Ok(Json(cats))
-}
-
-pub async fn salvar_categorias(
-    State(st): State<AppState>,
-    Json(cats): Json<Vec<Categoria>>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let total = categorias::salvar_categorias(&st.categorias_path(), &cats)?;
-    Ok(Json(json!({ "ok": true, "total": total })))
-}
+// Sem CRUD de categorias na web (spec 005): a gestão só existe no desktop
+// (comandos Tauri). A busca continua classificando pelas categorias globais
+// (o núcleo lê `categoria.json` internamente, sem endpoint).
 
 // ---------------------------------------------------------------- rate limit //
 

@@ -36,8 +36,6 @@ use crate::sessao::now_secs;
 pub struct AppState {
     /// Raiz efêmera dos dados (sessões + categoria.json global).
     pub data_dir: PathBuf,
-    /// Semente de categorias (`config/categoria.json`).
-    pub seed_categorias: PathBuf,
     /// TTL de inatividade da sessão.
     pub session_ttl: Duration,
     /// `Secure` no cookie (produção/HTTPS).
@@ -114,10 +112,9 @@ pub fn app(state: AppState) -> Router {
             "/api/documento/:siape/:arquivo",
             get(rotas::abrir_documento),
         )
-        .route(
-            "/api/categorias",
-            get(rotas::listar_categorias).put(rotas::salvar_categorias),
-        )
+        // Sem CRUD de categorias na web (spec 005): as categorias são fixas
+        // (config global do servidor) e guiam a classificação; a gestão só
+        // existe no desktop (comandos Tauri).
         .route("/api/relatorio", post(rotas::gerar_relatorio))
         .route("/api/relatorio/:siape", get(rotas::servir_relatorio))
         .route("/api/zip/:siape", get(rotas::baixar_zip))
@@ -135,9 +132,6 @@ pub fn app(state: AppState) -> Router {
 /// Lê a config do ambiente e monta o `AppState`.
 pub fn state_do_ambiente() -> AppState {
     let data_dir = PathBuf::from(env_ou("GEDOCS_DATA_DIR", "./data-web"));
-    let seed_categorias = std::env::var("GEDOCS_CATEGORIAS_SEED")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| gedocs_core::services::categorias::caminho_padrao());
     let session_ttl =
         Duration::from_secs(env_ou("GEDOCS_SESSION_TTL", "3600").parse().unwrap_or(3600));
     let secure_cookie = env_ou("GEDOCS_SECURE_COOKIE", "false") == "true";
@@ -146,7 +140,6 @@ pub fn state_do_ambiente() -> AppState {
 
     AppState {
         data_dir,
-        seed_categorias,
         session_ttl,
         secure_cookie,
         rate: Arc::new(Mutex::new(HashMap::new())),

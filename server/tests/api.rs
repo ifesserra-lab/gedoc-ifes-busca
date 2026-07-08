@@ -21,16 +21,8 @@ use http_body_util::BodyExt;
 use tower::ServiceExt;
 
 fn estado(tmp: &Path, rate_limit: u32) -> AppState {
-    let seed = tmp.join("seed.json");
-    // Formato do arquivo de categorias: objeto com a chave `categorias`.
-    std::fs::write(
-        &seed,
-        r#"{"categorias":[{"nome":"Progressão","descricao":null}]}"#,
-    )
-    .unwrap();
     AppState {
         data_dir: tmp.join("data"),
-        seed_categorias: seed,
         session_ttl: Duration::from_secs(3600),
         secure_cookie: false,
         rate: Arc::new(Mutex::new(HashMap::new())),
@@ -113,38 +105,24 @@ async fn buscar_siape_invalido_400_sem_rede() {
 }
 
 #[tokio::test]
-async fn categorias_lista_semeada_e_crud_com_validacao() {
+async fn sem_endpoint_de_categorias_na_web() {
+    // spec 005: a web não expõe CRUD de categorias. Os endpoints não existem
+    // (404), tanto leitura quanto escrita.
     let tmp = tempfile::tempdir().unwrap();
     let r = app(estado(tmp.path(), 1000));
 
-    // GET semeia e lista + emite cookie de sessão (US2/FR-010).
-    let (status, setc, body) = call(&r, "GET", "/api/categorias", None, None).await;
-    assert_eq!(status, StatusCode::OK);
-    assert!(String::from_utf8_lossy(&body).contains("Progressão"));
-    assert!(setc.is_some(), "deve emitir cookie gedocs_sid");
-    assert!(setc.as_ref().unwrap().contains("HttpOnly"));
+    let (get_status, _c, _b) = call(&r, "GET", "/api/categorias", None, None).await;
+    assert_eq!(get_status, StatusCode::NOT_FOUND);
 
-    // PUT nome vazio -> 400.
-    let (status, _c, body) =
-        call(&r, "PUT", "/api/categorias", Some(r#"[{"nome":""}]"#), None).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert!(String::from_utf8_lossy(&body).contains("CategoriaSemNome"));
-
-    // PUT válido -> 200 e persiste (last-write-wins, FR-017).
-    let (status, _c, body) = call(
+    let (put_status, _c, _b) = call(
         &r,
         "PUT",
         "/api/categorias",
-        Some(r#"[{"nome":"A"},{"nome":"B"}]"#),
+        Some(r#"[{"nome":"X"}]"#),
         None,
     )
     .await;
-    assert_eq!(status, StatusCode::OK);
-    assert!(String::from_utf8_lossy(&body).contains("\"total\":2"));
-
-    let (_s, _c, body) = call(&r, "GET", "/api/categorias", None, None).await;
-    let txt = String::from_utf8_lossy(&body);
-    assert!(txt.contains("\"A\"") && txt.contains("\"B\""));
+    assert_eq!(put_status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -183,8 +161,8 @@ async fn documento_isolado_por_sessao_sc002() {
     let st = estado(tmp.path(), 1000);
     let r = app(st.clone());
 
-    // Sessão A: emite cookie e cria manualmente um PDF baixado.
-    let (_s, setc_a, _b) = call(&r, "GET", "/api/categorias", None, None).await;
+    // Sessão A: uma rota protegida emite o cookie; cria manualmente um PDF.
+    let (_s, setc_a, _b) = call(&r, "GET", "/api/relatorio/1998547", None, None).await;
     let sid_a = sid_de(&setc_a);
     let doc = st
         .sessions_root()

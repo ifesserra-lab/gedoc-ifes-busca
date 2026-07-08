@@ -5,6 +5,8 @@
 import { useColorMode } from "@vueuse/core";
 import { computed } from "vue";
 
+import { emTauri } from "@/services/ipc";
+
 // VueUse alterna as classes "dark"/"light" em <html> (ver assets/tokens.css);
 // `emitAuto: true` preserva "não escolhido ainda" = segue o sistema.
 const colorMode = useColorMode({ emitAuto: true });
@@ -16,10 +18,12 @@ const ehEscuro = computed({
   },
 });
 
-const links = [
+// Categorias só no desktop (Tauri): na web a gestão de categorias é removida
+// (spec 005) — a classificação segue usando as categorias globais do servidor.
+const links = computed(() => [
   { to: "/", label: "Busca" },
-  { to: "/categorias", label: "Categorias" },
-];
+  ...(emTauri() ? [{ to: "/categorias", label: "Categorias" }] : []),
+]);
 </script>
 
 <template>
