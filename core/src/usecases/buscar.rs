@@ -27,6 +27,30 @@ use crate::services::{categorias, filtro, resumidor};
 
 const SEM_CATEGORIA: &str = "Sem categoria";
 
+/// Chave de ordenação por data (spec 004): `(ano, mês, dia)` extraído de
+/// `Documento.data` (`DD/MM/AAAA`). `None` quando a data está ausente ou sem
+/// ano legível — esses documentos vão para o fim da lista.
+fn chave_data(data: &Option<String>) -> Option<(u16, u8, u8)> {
+    let s = data.as_deref()?;
+    let p: Vec<&str> = s.trim().split('/').collect();
+    let ano: u16 = p.get(2)?.trim().parse().ok()?;
+    let mes: u8 = p.get(1).and_then(|m| m.trim().parse().ok()).unwrap_or(0);
+    let dia: u8 = p.first().and_then(|d| d.trim().parse().ok()).unwrap_or(0);
+    Some((ano, mes, dia))
+}
+
+/// Ordena os documentos por **ano decrescente** (mais recente primeiro),
+/// desempatando pela data completa (desc); documentos sem data legível vão ao
+/// fim. Estável (`sort_by`): iguais preservam a ordem de origem (spec 004).
+fn ordenar_por_ano(docs: &mut [Documento]) {
+    docs.sort_by(|a, b| match (chave_data(&a.data), chave_data(&b.data)) {
+        (Some(ka), Some(kb)) => kb.cmp(&ka),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => std::cmp::Ordering::Equal,
+    });
+}
+
 /// Caches de IA (US5/US6), dentro do diretório de dados. Um único arquivo
 /// global por tipo (chave = link). As bordas resolvem o caminho final usando
 /// estes nomes.
@@ -62,7 +86,8 @@ pub fn montar_resultado(
     let categorias = ordem
         .into_iter()
         .filter_map(|nome| {
-            let docs = grupos.remove(&nome).filter(|docs| !docs.is_empty())?;
+            let mut docs = grupos.remove(&nome).filter(|docs| !docs.is_empty())?;
+            ordenar_por_ano(&mut docs);
             Some(CategoriaGrupo {
                 qtd: docs.len(),
                 itens: docs.into_iter().map(DocView::from).collect(),
@@ -619,5 +644,73 @@ mod tests {
 
         assert_eq!(resultado.categorias.len(), 1);
         assert_eq!(resultado.categorias[0].categoria, "Categoria Legada");
+    }
+
+    // --- ordenação por ano (spec 004) ------------------------------------ //
+
+    fn doc_em(link: &str, categoria: &str, data: Option<&str>) -> Documento {
+        let mut d = doc_com_siape(link, "PORTARIA - assunto", "1998547");
+        d.categoria = Some(categoria.to_string());
+        d.data = data.map(|s| s.to_string());
+        d
+    }
+
+    #[test]
+    fn ordena_documentos_por_ano_desc_dentro_da_categoria() {
+        let docs = vec![
+            doc_em("a", "Progressão", Some("10/01/2018")),
+            doc_em("b", "Progressão", Some("10/01/2022")),
+            doc_em("c", "Progressão", Some("10/01/2019")),
+        ];
+        let r = montar_resultado("1998547", 3, docs, &["Progressão".to_string()]);
+        let datas: Vec<_> = r.categorias[0]
+            .itens
+            .iter()
+            .map(|i| i.data.clone().unwrap())
+            .collect();
+        assert_eq!(datas, vec!["10/01/2022", "10/01/2019", "10/01/2018"]);
+        assert_eq!(r.categorias[0].qtd, 3);
+    }
+
+    #[test]
+    fn documentos_sem_data_vao_para_o_fim() {
+        let docs = vec![
+            doc_em("a", "Outros", None),
+            doc_em("b", "Outros", Some("05/03/2020")),
+            doc_em("c", "Outros", None),
+            doc_em("d", "Outros", Some("01/01/2021")),
+        ];
+        let r = montar_resultado("1998547", 4, docs, &["Outros".to_string()]);
+        let datas: Vec<_> = r.categorias[0]
+            .itens
+            .iter()
+            .map(|i| i.data.clone())
+            .collect();
+        assert_eq!(
+            datas,
+            vec![
+                Some("01/01/2021".to_string()),
+                Some("05/03/2020".to_string()),
+                None,
+                None,
+            ]
+        );
+        assert_eq!(r.categorias[0].qtd, 4);
+    }
+
+    #[test]
+    fn empate_de_ano_desempata_pela_data_completa_desc() {
+        let docs = vec![
+            doc_em("a", "Férias", Some("03/02/2021")),
+            doc_em("b", "Férias", Some("20/11/2021")),
+            doc_em("c", "Férias", Some("01/06/2021")),
+        ];
+        let r = montar_resultado("1998547", 3, docs, &["Férias".to_string()]);
+        let datas: Vec<_> = r.categorias[0]
+            .itens
+            .iter()
+            .map(|i| i.data.clone().unwrap())
+            .collect();
+        assert_eq!(datas, vec!["20/11/2021", "01/06/2021", "03/02/2021"]);
     }
 }
