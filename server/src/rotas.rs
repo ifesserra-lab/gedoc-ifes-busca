@@ -150,15 +150,19 @@ pub async fn servir_relatorio(
         .join(format!("{siape}_relatorio.html"));
     match std::fs::read(&caminho) {
         Ok(bytes) => arquivo_resp(bytes, "text/html; charset=utf-8", "inline"),
-        Err(_) => resposta(
-            &AppError::FalhaArquivo {
-                motivo: "Relatório não encontrado. Faça a busca no modo IA e clique em \
-                         'Baixar relatório' na tela antes de abrir este link — o relatório \
-                         é gerado por sessão e consolida os resumos da IA."
-                    .into(),
-            },
+        // Tipo próprio `RelatorioAusente` (não `FalhaArquivo`): não é falha de
+        // acesso a arquivo, é orientação. O front mostra a mensagem limpa,
+        // sem o prefixo "Falha ao acessar arquivo:".
+        Err(_) => (
             StatusCode::NOT_FOUND,
-        ),
+            Json(json!({
+                "tipo": "RelatorioAusente",
+                "mensagem": {"motivo": "Relatório não encontrado. Faça a busca no modo IA e \
+                    clique em 'Baixar relatório' na tela antes de abrir este link — o relatório \
+                    é gerado por sessão e consolida os resumos da IA."}
+            })),
+        )
+            .into_response(),
     }
 }
 
