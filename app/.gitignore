@@ -1,0 +1,4 @@
+
+# env local (dev web) — não versionar
+.env.local
+.env.*.local

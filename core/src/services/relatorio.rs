@@ -32,7 +32,7 @@
 
 use pulldown_cmark::{html, Options, Parser};
 
-use crate::commands::buscar::ResultadoView;
+use crate::dto::ResultadoView;
 
 const SEM_RESUMO: &str = "_(sem resumo)_";
 
@@ -217,7 +217,7 @@ fn link_seguro(link: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::buscar::{CategoriaGrupo, DocView};
+    use crate::dto::{CategoriaGrupo, DocView};
 
     fn doc(titulo: &str, resumo: Option<&str>) -> DocView {
         DocView {

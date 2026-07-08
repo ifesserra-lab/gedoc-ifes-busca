@@ -1,8 +1,8 @@
 //! R10 (integração, via API pública do crate): `Servidor.siape` e o termo de
 //! busca MUST casar `^[0-9]{5,8}$`.
 
-use gedocs_lib::domain::siape::{eh_siape, validar};
-use gedocs_lib::error::AppError;
+use gedocs_core::domain::siape::{eh_siape, validar};
+use gedocs_core::error::AppError;
 
 #[test]
 fn aceita_siape_de_5_a_8_digitos() {

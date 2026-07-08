@@ -7,11 +7,11 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 
-use gedocs_lib::domain::documento::Documento;
-use gedocs_lib::error::AppError;
-use gedocs_lib::ports::ia::ChatIa;
-use gedocs_lib::services::cache::CacheArquivo;
-use gedocs_lib::services::resumidor::resumir_lote;
+use gedocs_core::domain::documento::Documento;
+use gedocs_core::error::AppError;
+use gedocs_core::ports::ia::ChatIa;
+use gedocs_core::services::cache::CacheArquivo;
+use gedocs_core::services::resumidor::resumir_lote;
 
 const SIAPE: &str = "1998547";
 

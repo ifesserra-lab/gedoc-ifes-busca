@@ -3,8 +3,8 @@
 
 use std::collections::HashSet;
 
-use gedocs_lib::domain::documento::Documento;
-use gedocs_lib::domain::nome_arquivo::{nome_arquivo, nome_unico};
+use gedocs_core::domain::documento::Documento;
+use gedocs_core::domain::nome_arquivo::{nome_arquivo, nome_unico};
 
 #[test]
 fn deriva_nome_a_partir_do_titulo_com_ano_e_numero() {

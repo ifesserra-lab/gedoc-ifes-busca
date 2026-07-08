@@ -4,17 +4,19 @@ Objetivo: publicar uma versão **web** do app (hoje desktop Tauri) com o
 frontend hospedado na **Vercel**, reaproveitando o máximo do código Rust
 existente.
 
-> **Status (implementado):** spec-kit completo em
-> [`specs/003-versao-web/`](../specs/003-versao-web/) (spec/plan/tasks +
-> contrato). Crate [`server/`](../server/) (axum) reusando `gedocs_lib`
-> compila e passa nos testes (8/8 integração, sem rede); adaptador
-> [`ipc.ts`](../app/src/services/ipc.ts) dual-mode (7/7 no vitest);
-> deploy pronto ([`vercel.json`](../vercel.json),
-> [`server/Dockerfile`](../server/Dockerfile),
-> [`server/fly.toml`](../server/fly.toml)). Smoke local OK
-> (health / SIAPE inválido / categorias + cookie de sessão). Pendente:
-> teste de integração do modo IA via HTTP (ver `tasks.md` T024) e o
-> deploy real. 42 issues: #34–#75.
+> **Status (implementado — inclui A2):** spec-kit completo em
+> [`specs/003-versao-web/`](../specs/003-versao-web/). Núcleo extraído para
+> [`core/`](../core/) (`gedocs-core`, **sem Tauri**): domínio/serviços/ports/
+> use-cases/dto. [`src-tauri/`](../src-tauri/) virou wrapper fino (comandos
+> Tauri → use-cases do core); [`server/`](../server/) (axum) depende **só do
+> core** — `cargo tree` confirma **zero tauri/wry/webkit**, então o
+> [`Dockerfile`](../server/Dockerfile) não instala mais WebKit (imagem
+> pequena). Testes verdes: `core` (unit + integração), `server` 8/8 (sem
+> rede), `ipc.ts` 7/7 (vitest); desktop `src-tauri` compila. Smoke local OK
+> (health / SIAPE inválido / busca real / categorias + cookie). Deploy:
+> [`vercel.json`](../vercel.json), [`Dockerfile`](../server/Dockerfile),
+> [`fly.toml`](../server/fly.toml). Pendente: teste do modo IA via HTTP
+> (`tasks.md` T024) e o deploy real. 42 issues: #34–#75.
 
 ## 1. Ponto de partida (o que já existe)
 

@@ -10,17 +10,16 @@ use axum::{
 };
 use serde_json::json;
 
-use gedocs_lib::commands::buscar::{executar, BuscarPorSiapeInput, ResultadoView};
-use gedocs_lib::commands::documento::{
-    executar_download, resolver_caminho_abertura, AbrirDocumentoInput, BaixarDocumentoInput,
-};
-use gedocs_lib::commands::exportar::executar_gerar_relatorio;
-use gedocs_lib::domain::categoria::Categoria;
-use gedocs_lib::error::AppError;
-use gedocs_lib::ports::http::ReqwestHttp;
-use gedocs_lib::services::categorias;
-use gedocs_lib::services::classificador::ModoClassificacao;
-use gedocs_lib::services::empacotador::montar_zip;
+use gedocs_core::domain::categoria::Categoria;
+use gedocs_core::dto::{AbrirDocumentoInput, BaixarDocumentoInput, BuscarPorSiapeInput, ResultadoView};
+use gedocs_core::error::AppError;
+use gedocs_core::ports::http::ReqwestHttp;
+use gedocs_core::services::categorias;
+use gedocs_core::services::classificador::ModoClassificacao;
+use gedocs_core::services::empacotador::montar_zip;
+use gedocs_core::usecases::buscar::executar;
+use gedocs_core::usecases::documento::{executar_download, resolver_caminho_abertura};
+use gedocs_core::usecases::exportar::executar_gerar_relatorio;
 
 use crate::erro::{resposta, ApiError};
 use crate::sessao::SessionCtx;

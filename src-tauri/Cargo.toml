@@ -18,29 +18,11 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+# Núcleo compartilhado (domínio/serviços/ports/use-cases/dto), SEM Tauri —
+# mesma lógica usada pela versão web (`server/`). Regra de negócio não é
+# duplicada aqui (Princípio V/DRY).
+gedocs-core = { path = "../core" }
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-thiserror = "1"
-regex = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-reqwest = { version = "0.13", default-features = false, features = ["blocking", "cookies", "rustls", "gzip", "form"] }
-# US6 — extração de texto de PDF em Rust puro, sem depender de um binário de
-# sistema (`pdftotext`, usado pelo script Python de referência). Só depende
-# de crates Rust (lopdf etc.); nenhuma lib nativa (ex.: freetype) é exigida.
-pdf-extract = "0.12"
-# US7 — Markdown -> HTML puro-Rust para o relatório consolidado (ver decisão
-# de PDF em `services/relatorio.rs`: nada de Chrome headless). Só a feature
-# `html` (sem `getopts`, usado apenas pelo binário de linha de comando do
-# crate, que não usamos como lib).
-pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
-# US7 — monta o ZIP de PDFs já baixados. `default-features = false`: sem
-# codecs pesados (deflate/bzip2/lzma/zstd/aes) — PDFs já vêm comprimidos, o
-# método `Stored` (cópia sem recompressão, default sem a feature `deflate`)
-# já basta e mantém a árvore de dependências enxuta.
-zip = { version = "2", default-features = false }
-
-[dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-tempfile = "3"

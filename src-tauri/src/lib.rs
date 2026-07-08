@@ -1,17 +1,11 @@
-//! Backend Rust (Model + Controller) do GeDoc IFES Toolkit.
+//! Controller Tauri do GeDoc IFES Toolkit.
 //!
-//! Camadas (Princípio V/IX — MVC):
-//! - `domain`: Model — entidades e regras de negócio puras, sem I/O.
-//! - `services`: orquestração de Models para um caso de uso.
-//! - `ports`: contratos (Repository/Strategy) implementados pela infra.
-//! - `commands`: Controller — fronteira `#[tauri::command]` do IPC.
-//! - `error`: `AppError` único, serializável, cruza o IPC.
+//! O núcleo (domínio/serviços/ports/use-cases) vive no crate `gedocs-core`
+//! (sem Tauri, reutilizável pela web). Aqui ficam só os comandos
+//! `#[tauri::command]` (Controller/IPC) que resolvem os diretórios do app e
+//! delegam aos use-cases de `gedocs_core`.
 
 pub mod commands;
-pub mod domain;
-pub mod error;
-pub mod ports;
-pub mod services;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

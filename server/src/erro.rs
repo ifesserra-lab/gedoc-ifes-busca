@@ -7,7 +7,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use gedocs_lib::error::AppError;
+use gedocs_core::error::AppError;
 
 /// Wrapper para usar `?` em handlers que devolvem `Result<_, ApiError>`.
 pub struct ApiError(pub AppError);

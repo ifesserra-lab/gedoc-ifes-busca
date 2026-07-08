@@ -2,8 +2,8 @@
 //! extrai total, título, data, trecho e SIAPEs citados; erros do portal
 //! (mensagem de erro, sessão expirada) viram `AppError::FalhaPortal`.
 
-use gedocs_lib::error::AppError;
-use gedocs_lib::services::gedoc_parse::parse_resposta;
+use gedocs_core::error::AppError;
+use gedocs_core::services::gedoc_parse::parse_resposta;
 
 const FIXTURE_OK: &str = include_str!("fixtures/resposta_ok.xml");
 const FIXTURE_ERRO: &str = include_str!("fixtures/resposta_erro.xml");

@@ -3,9 +3,9 @@
 //! parser (`services::gedoc_parse`) com o filtro (`services::filtro`) sobre a
 //! mesma fixture usada pelos testes do parser — sem tocar rede.
 
-use gedocs_lib::domain::documento::Documento;
-use gedocs_lib::services::filtro::{filtrar_por_siape, separar};
-use gedocs_lib::services::gedoc_parse::parse_resposta;
+use gedocs_core::domain::documento::Documento;
+use gedocs_core::services::filtro::{filtrar_por_siape, separar};
+use gedocs_core::services::gedoc_parse::parse_resposta;
 
 const FIXTURE_OK: &str = include_str!("fixtures/resposta_ok.xml");
 

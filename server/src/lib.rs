@@ -128,7 +128,7 @@ pub fn state_do_ambiente() -> AppState {
     let data_dir = PathBuf::from(env_ou("GEDOCS_DATA_DIR", "./data-web"));
     let seed_categorias = std::env::var("GEDOCS_CATEGORIAS_SEED")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| gedocs_lib::services::categorias::caminho_padrao());
+        .unwrap_or_else(|_| gedocs_core::services::categorias::caminho_padrao());
     let session_ttl =
         Duration::from_secs(env_ou("GEDOCS_SESSION_TTL", "3600").parse().unwrap_or(3600));
     let secure_cookie = env_ou("GEDOCS_SECURE_COOKIE", "false") == "true";

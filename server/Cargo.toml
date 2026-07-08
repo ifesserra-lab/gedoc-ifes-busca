@@ -15,8 +15,8 @@ path = "src/main.rs"
 [dependencies]
 # Reusa o núcleo puro do app desktop (domain/services/ports/error + use-cases
 # `executar*`). Nada de regra de negócio é reimplementado aqui.
-# Package `gedocs`, lib `gedocs_lib` — dep key = nome do package; `use` = nome da lib.
-gedocs = { path = "../src-tauri" }
+# Núcleo compartilhado SEM Tauri — a API web não linka tauri/webkit (A2).
+gedocs-core = { path = "../core" }
 
 axum = "0.7"
 tokio = { version = "1", features = ["full"] }
