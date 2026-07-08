@@ -154,7 +154,12 @@ pub async fn run() {
         )
         .init();
 
-    let bind = env_ou("GEDOCS_BIND", "0.0.0.0:8787");
+    // Render/Heroku injetam `PORT`; respeitamos `GEDOCS_BIND` se setado, senão
+    // `0.0.0.0:$PORT`, senão a porta padrão local.
+    let bind = std::env::var("GEDOCS_BIND")
+        .ok()
+        .or_else(|| std::env::var("PORT").ok().map(|p| format!("0.0.0.0:{p}")))
+        .unwrap_or_else(|| "0.0.0.0:8787".to_string());
     let state = state_do_ambiente();
     ttl::spawn_cleanup(state.clone());
 

@@ -1,0 +1,32 @@
+# Blueprint do Render — API web (axum, Docker). Reusa `gedocs-core` (sem Tauri).
+#
+# Deploy: Render → New → Blueprint → conectar este repositório. O Render lê este
+# arquivo, builda `server/Dockerfile` (contexto = raiz) e sobe o serviço.
+# Depois: defina GEDOCS_CORS_ORIGIN = URL do frontend (Vercel) e, opcional,
+# MISTRAL_API_KEY (modo IA). O Render injeta `PORT`; o servidor faz bind nele.
+
+services:
+  - type: web
+    name: gedoc-search-api
+    runtime: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: .
+    plan: free
+    region: virginia
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: GEDOCS_DATA_DIR
+        value: /tmp/gedocs-data
+      - key: GEDOCS_SESSION_TTL
+        value: "3600"
+      - key: GEDOCS_SECURE_COOKIE
+        value: "true"
+      - key: GEDOCS_CATEGORIAS_SEED
+        value: /app/config/categoria.json
+      # Defina no dashboard (não versionar): origem do frontend na Vercel.
+      - key: GEDOCS_CORS_ORIGIN
+        sync: false
+      # Opcional (modo IA). Defina no dashboard como secret.
+      - key: MISTRAL_API_KEY
+        sync: false
