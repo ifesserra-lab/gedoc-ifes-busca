@@ -1,0 +1,58 @@
+name: Deploy
+
+# Dispara APÓS o workflow "CI" concluir com sucesso em `main`. Assim o deploy
+# só acontece com testes/clippy/lint verdes (Princípio VII / Fluxo item 5).
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+# Evita deploys concorrentes pisando um no outro.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy (API Render + Frontend Vercel)
+    runs-on: ubuntu-22.04
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- API: dispara um novo deploy no Render (Docker) ---
+      - name: Deploy da API no Render
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          if [ -z "$RENDER_API_KEY" ] || [ -z "$RENDER_SERVICE_ID" ]; then
+            echo "::warning::RENDER_API_KEY/RENDER_SERVICE_ID ausentes — pulando deploy da API."
+            exit 0
+          fi
+          curl -fsS -X POST \
+            "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"clearCache":"do_not_clear"}'
+          echo "Deploy da API disparado no Render."
+
+      # --- Frontend: build + deploy de produção na Vercel ---
+      - name: Instalar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Deploy do frontend na Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::warning::VERCEL_TOKEN ausente — pulando deploy do frontend."
+            exit 0
+          fi
+          npm i -g vercel@latest
+          vercel deploy --prod --yes --archive=tgz --token="$VERCEL_TOKEN"
