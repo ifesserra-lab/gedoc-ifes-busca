@@ -152,7 +152,10 @@ pub async fn servir_relatorio(
         Ok(bytes) => arquivo_resp(bytes, "text/html; charset=utf-8", "inline"),
         Err(_) => resposta(
             &AppError::FalhaArquivo {
-                motivo: "Relatório não encontrado.".into(),
+                motivo: "Relatório não encontrado. Faça a busca no modo IA e clique em \
+                         'Baixar relatório' na tela antes de abrir este link — o relatório \
+                         é gerado por sessão e consolida os resumos da IA."
+                    .into(),
             },
             StatusCode::NOT_FOUND,
         ),

@@ -42,6 +42,14 @@ export const useBuscaStore = defineStore("busca", () => {
    */
   const usarIa = ref(false);
   /**
+   * US7 — indica se o `resultado` atual foi produzido no modo IA (`llm`).
+   * O relatório consolida os RESUMOS da IA, então só faz sentido (e só é
+   * habilitado na tela) quando a busca foi feita com IA. Marcado no fim de
+   * cada busca com o `usarIa` daquela busca — não muda se o toggle for
+   * alternado depois.
+   */
+  const resultadoComIa = ref(false);
+  /**
    * US #22 — progresso do "Baixar todos os PDFs". `null` quando não há
    * download em lote em andamento; caso contrário, `{ atual, total }` para a
    * barra de progresso. Estado de UI, vive na store (a View só apresenta).
@@ -75,10 +83,12 @@ export const useBuscaStore = defineStore("busca", () => {
     erro.value = null;
     categoriaSelecionada.value = null;
     try {
+      const comIa = usarIa.value;
       resultado.value = await buscarPorSiape({
         siape: siape.value,
-        modo: usarIa.value ? "llm" : "keyword",
+        modo: comIa ? "llm" : "keyword",
       });
+      resultadoComIa.value = comIa;
       estado.value = "resultado";
     } catch (motivo) {
       estado.value = "erro";
@@ -126,6 +136,7 @@ export const useBuscaStore = defineStore("busca", () => {
     estado.value = "idle";
     erro.value = null;
     resultado.value = null;
+    resultadoComIa.value = false;
     categoriaSelecionada.value = null;
   }
 
@@ -139,6 +150,7 @@ export const useBuscaStore = defineStore("busca", () => {
     categoriaSelecionada,
     gruposFiltrados,
     usarIa,
+    resultadoComIa,
     downloadProgresso,
     baixandoTodos,
     buscar,

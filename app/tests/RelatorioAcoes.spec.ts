@@ -18,6 +18,7 @@ import { defineComponent, h } from "vue";
 import RelatorioAcoes from "@/components/busca/RelatorioAcoes.vue";
 import * as ipc from "@/services/ipc";
 import type { ResultadoView } from "@/services/ipc";
+import { useBuscaStore } from "@/stores/busca";
 
 const SIAPE = "1998547"; // fictício, sem PII (Constituição II/LGPD).
 
@@ -45,7 +46,11 @@ function resultadoCom(overrides: Partial<ResultadoView> = {}): ResultadoView {
   };
 }
 
-function montar(resultado: ResultadoView | null) {
+// `comIa` reflete se a busca atual foi no modo IA — o relatório (US7) só é
+// habilitado nesse caso (consolida os resumos da IA). Default `true` para os
+// testes que exercitam o relatório habilitado.
+function montar(resultado: ResultadoView | null, comIa = true) {
+  useBuscaStore().resultadoComIa = comIa;
   const Host = defineComponent({
     setup() {
       return () =>
@@ -90,6 +95,14 @@ describe("RelatorioAcoes", () => {
     expect(zip.attributes("disabled")).toBeUndefined();
     expect(relatorio.classes()).toContain("alvo-minimo");
     expect(zip.classes()).toContain("alvo-minimo");
+  });
+
+  it("busca sem IA (keyword) mantém o relatório desabilitado; ZIP segue habilitado (US7)", () => {
+    const wrapper = montar(resultadoCom(), false);
+
+    const { relatorio, zip } = botoes(wrapper);
+    expect(relatorio.attributes("disabled")).toBeDefined();
+    expect(zip.attributes("disabled")).toBeUndefined();
   });
 
   it("clicar em 'Baixar relatório' chama gerarRelatorio com o resultado atual", async () => {
