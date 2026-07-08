@@ -50,9 +50,6 @@ impl AppState {
     pub fn sessions_root(&self) -> PathBuf {
         self.data_dir.join("sessions")
     }
-    pub fn categorias_path(&self) -> PathBuf {
-        self.data_dir.join("categoria.json")
-    }
 }
 
 pub fn env_ou(chave: &str, padrao: &str) -> String {

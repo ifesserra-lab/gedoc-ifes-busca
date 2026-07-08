@@ -21,15 +21,19 @@ navegador, sem instalar nada:
 
 Uso interno, **sem login**: cada visitante recebe uma sessão efêmera; os PDFs
 (dados pessoais de terceiros) ficam isolados por sessão e são apagados por TTL
-(~1h) — conformidade com a LGPD. Frontend estático na **Vercel**, API (Docker,
+(~1h) — conformidade com a LGPD. Frontend estático na **Vercel** (proxy
+`/api/*` → Render, mesma origem → cookie de sessão first-party), API (Docker,
 axum) no **Render**, reusando o mesmo núcleo Rust do desktop (crate
-`gedocs-core`, sem Tauri). Arquitetura e decisões em
-[docs/plano-web.md](docs/plano-web.md) e [specs/003-versao-web/](specs/003-versao-web/).
+`gedocs-core`, sem Tauri).
 
-> O **relatório** consolida os resumos da IA — ative o **modo IA** na busca para
-> habilitá-lo. Sem IA (modo keyword) a busca/PDF/ZIP funcionam normalmente.
-> No plano free do Render, a API hiberna após ~15 min ociosa: a primeira busca
-> depois disso leva ~30–60 s (cold start).
+- **Guia do usuário (web):** [docs/guia-usuario-web.md](docs/guia-usuario-web.md)
+- **Arquitetura / deploy / CI-CD:** [docs/arquitetura.md](docs/arquitetura.md)
+- Plano e decisões: [docs/plano-web.md](docs/plano-web.md) · specs em [specs/](specs/)
+
+> O **relatório** consolida os resumos da IA — clicar em **Baixar relatório**
+> executa a IA (resume os documentos) e gera; sem IA a busca/PDF/ZIP funcionam
+> normalmente. No plano free do Render, a API hiberna após ~15 min ociosa: a
+> primeira busca depois disso leva ~30–60 s (cold start).
 
 ## Download / Instaladores
 
