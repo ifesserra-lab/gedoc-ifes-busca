@@ -166,6 +166,44 @@ fn extrair_categoria(resposta: &str, categorias: &[Categoria]) -> String {
 mod tests {
     use super::*;
 
+    // --- prompt da IA usa as categorias do category.json (spec 006) --------- //
+
+    #[test]
+    fn prompt_da_ia_inclui_nome_e_descricao_de_cada_categoria() {
+        let categorias = vec![
+            Categoria::nova(
+                "Progressão",
+                Some("Progressão funcional por mérito".to_string()),
+            ),
+            Categoria::nova(
+                "Férias",
+                Some("Concessão e interrupção de férias".to_string()),
+            ),
+            Categoria::nova(OUTROS, Some("Demais documentos".to_string())),
+        ];
+        let doc = Documento::novo("link", "PORTARIA Nº 1 - 2024 - Progressão funcional");
+
+        let (sistema, usuario) = montar_prompt(&doc, &categorias);
+
+        // Sistema orienta a escolher UMA categoria da lista fornecida.
+        assert!(sistema.contains("UMA"));
+        // Usuário lista as categorias do config (nome + descrição) — FR-002/SC-002.
+        assert!(usuario.contains("Categorias disponíveis:"));
+        for c in &categorias {
+            assert!(
+                usuario.contains(&c.nome),
+                "o prompt deve citar a categoria '{}'",
+                c.nome
+            );
+            let descricao = c.descricao.as_deref().unwrap();
+            assert!(
+                usuario.contains(descricao),
+                "o prompt deve citar a descrição de '{}'",
+                c.nome
+            );
+        }
+    }
+
     // --- ClassificadorPalavraChave ------------------------------------------ //
 
     #[test]
