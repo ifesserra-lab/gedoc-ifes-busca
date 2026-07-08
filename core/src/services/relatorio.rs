@@ -51,7 +51,7 @@ const CSS: &str = r#"
   :root {
     --paper:#f6f8f6; --surface:#ffffff; --surface-2:#f0f4f1;
     --ink:#14211b; --muted:#5e6b64; --border:#e4eae5;
-    --accent:#17784e; --accent-soft:#e7f1ec;
+    --accent:#17784e; --accent-soft:#e7f1ec; --accent-contrast:#ffffff;
     --sans:"Inter",-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,monospace;
   }
@@ -59,7 +59,7 @@ const CSS: &str = r#"
     :root {
       --paper:#0e1512; --surface:#151e1a; --surface-2:#1b2621;
       --ink:#e8eeea; --muted:#93a79c; --border:#27332c;
-      --accent:#34b37e; --accent-soft:#122a20;
+      --accent:#34b37e; --accent-soft:#122a20; --accent-contrast:#0e1512;
     }
   }
   @page { size: A4; margin: 18mm 16mm; }
@@ -84,11 +84,19 @@ const CSS: &str = r#"
   code { background: var(--surface-2); color: var(--muted); padding: 1px 6px;
          border-radius: 6px; font-family: var(--mono); font-size: 12px; }
   h3 + p { color: var(--muted); font-size: 13px; }
+  /* Ação "Baixar PDF" (só tela; oculta na impressão via .no-print). */
+  .acoes { display: flex; justify-content: flex-end; margin: 0 0 16px; }
+  .btn-pdf { font: inherit; font-size: 14px; font-weight: 600;
+             color: var(--accent-contrast); background: var(--accent);
+             border: none; border-radius: 8px; padding: 8px 16px; cursor: pointer; }
+  .btn-pdf:hover { filter: brightness(1.06); }
   /* Impressão: força claro (telas escuras imprimem legível) + sem padding. */
   @media print {
     :root { --paper:#ffffff; --surface:#ffffff; --surface-2:#f0f4f1;
-            --ink:#14211b; --muted:#5e6b64; --border:#d7dde6; --accent:#125f3d; }
+            --ink:#14211b; --muted:#5e6b64; --border:#d7dde6; --accent:#125f3d;
+            --accent-contrast:#ffffff; }
     body { padding: 0; }
+    .no-print { display: none !important; }
   }
 "#;
 
@@ -187,13 +195,20 @@ pub fn markdown_para_html(md: &str, titulo: &str) -> String {
     let mut corpo = String::new();
     html::push_html(&mut corpo, parser);
 
+    // Botão "Baixar PDF" (só tela; `.no-print` some na impressão). `onclick`
+    // inline aciona o print-to-PDF do navegador sem `<script>` externo —
+    // mantém o HTML self-contained (spec 008).
+    let acoes = "<div class=\"acoes no-print\">\
+                 <button class=\"btn-pdf\" type=\"button\" onclick=\"window.print()\">\
+                 Baixar PDF</button></div>";
     format!(
         "<!doctype html>\n\
          <html lang=\"pt-BR\"><head><meta charset=\"utf-8\">\n\
          <title>{titulo}</title><style>{css}</style></head>\n\
-         <body>{corpo}</body></html>",
+         <body>{acoes}{corpo}</body></html>",
         titulo = escapar_texto(titulo),
         css = CSS,
+        acoes = acoes,
         corpo = corpo,
     )
 }
@@ -465,6 +480,20 @@ mod tests {
         // Self-contained (FR-003): nenhum import/asset externo de estilo/fonte.
         assert!(!html.contains("@import"));
         assert!(!html.contains("url(http"));
+    }
+
+    #[test]
+    fn html_tem_botao_baixar_pdf_oculto_na_impressao() {
+        let html = markdown_para_html("# T\n\ntexto", "Relatório");
+
+        // Botão visível "Baixar PDF" que aciona o print-to-PDF do navegador.
+        assert!(html.contains("Baixar PDF"));
+        assert!(html.contains("onclick=\"window.print()\""));
+        assert!(html.contains("class=\"acoes no-print\""));
+        // Ocultado na impressão (não sai no PDF) — spec 008 FR-003.
+        assert!(html.contains(".no-print"));
+        // Sem `<script>` externo — self-contained mantido (onclick inline).
+        assert!(!html.contains("<script"));
     }
 
     #[test]
