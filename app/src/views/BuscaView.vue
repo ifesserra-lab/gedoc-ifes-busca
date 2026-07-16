@@ -19,18 +19,22 @@ const store = useBuscaStore();
   <section class="busca">
     <header class="busca__intro">
       <p class="busca__eyebrow label-caps">Consulta GeDoc</p>
-      <h1 class="busca__titulo text-balance">Buscar por matrícula SIAPE</h1>
+      <h1 class="busca__titulo text-balance">
+        Buscar {{ store.porNome ? "por nome" : "por matrícula SIAPE" }}
+      </h1>
 
       <form class="busca__form" @submit.prevent="store.buscar()">
         <div class="busca__campo">
-          <label class="busca__label" for="siape">Matrícula SIAPE</label>
+          <label class="busca__label" for="siape">
+            {{ store.porNome ? "Nome ou palavra-chave" : "Matrícula SIAPE" }}
+          </label>
           <UInput
             id="siape"
             v-model="store.siape"
-            class="busca__input mono"
-            inputmode="numeric"
+            :class="['busca__input', { mono: !store.porNome }]"
+            :inputmode="store.porNome ? 'text' : 'numeric'"
             autocomplete="off"
-            placeholder="Ex.: 1998547"
+            :placeholder="store.porNome ? 'Ex.: João da Silva' : 'Ex.: 1998547'"
             size="xl"
             :color="store.estado === 'erro' ? 'error' : undefined"
             :aria-invalid="store.estado === 'erro'"
@@ -47,7 +51,22 @@ const store = useBuscaStore();
           {{ store.estado === "loading" ? "Buscando..." : "Buscar" }}
         </UButton>
       </form>
-      <p class="busca__hint">Informe de 5 a 8 dígitos numéricos.</p>
+      <p class="busca__hint">
+        {{
+          store.porNome
+            ? "Digite um nome ou palavra-chave."
+            : "Informe de 5 a 8 dígitos numéricos."
+        }}
+      </p>
+
+      <USwitch
+        id="por-nome"
+        v-model="store.porNome"
+        class="busca__toggle-ia alvo-minimo"
+        :disabled="store.estado === 'loading'"
+        label="Buscar por nome/palavra-chave"
+        description="Sem filtro por SIAPE — alcança documentos antigos que a busca por SIAPE não traz, mas pode incluir outras pessoas (homônimos)."
+      />
 
       <USwitch
         id="usar-ia"
@@ -78,7 +97,7 @@ const store = useBuscaStore();
         <div class="busca__resumo">
           <p class="busca__resumo-texto">
             <span class="mono busca__resumo-numero">{{ store.resultado.total }}</span>
-            documento(s) · SIAPE <span class="mono">{{ store.resultado.termo }}</span>
+            documento(s) · <span class="mono">{{ store.resultado.termo }}</span>
           </p>
 
           <RelatorioAcoes class="busca__resumo-acoes" :resultado="store.resultado" />

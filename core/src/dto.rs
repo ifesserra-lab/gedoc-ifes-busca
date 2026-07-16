@@ -12,6 +12,17 @@ pub struct BuscarPorSiapeInput {
     /// Estratégia de classificação (US5): `"keyword"` (default) ou `"llm"`.
     /// Ausente ou desconhecido => `keyword` (nunca falha por valor inesperado).
     pub modo: Option<String>,
+    /// Modo de busca (spec 009): `"siape"` (default — valida SIAPE e filtra por
+    /// SIAPE) ou `"nome"` (palavra-chave livre, sem validar nem filtrar por
+    /// SIAPE). Ausente/desconhecido => `siape`.
+    pub por: Option<String>,
+}
+
+impl BuscarPorSiapeInput {
+    /// `true` quando a busca é por nome/palavra-chave (spec 009).
+    pub fn por_nome(&self) -> bool {
+        self.por.as_deref() == Some("nome")
+    }
 }
 
 // `Deserialize` também é necessário (não só `Serialize`) porque

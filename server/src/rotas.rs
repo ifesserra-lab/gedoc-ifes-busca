@@ -77,6 +77,7 @@ pub async fn buscar(
         dir_docs,
         cache_res,
         categorias_path,
+        input.por_nome(),
     )
     .await?;
     Ok(Json(resultado))

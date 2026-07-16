@@ -65,6 +65,11 @@ export interface BuscarPorSiapeInput {
    * `"keyword"` (default) é grátis e instantâneo — sem tocar a API de IA.
    */
   modo?: "keyword" | "llm";
+  /**
+   * Modo de busca (spec 009): `"siape"` (default — valida SIAPE e filtra por
+   * SIAPE) ou `"nome"` (palavra-chave livre, sem validar/filtrar por SIAPE).
+   */
+  por?: "siape" | "nome";
 }
 
 export interface DocView {
