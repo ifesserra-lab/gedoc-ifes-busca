@@ -49,8 +49,25 @@ fn arquivo_resp(bytes: Vec<u8>, content_type: &str, disposition: &str) -> Respon
 
 // ------------------------------------------------------------------- health //
 
+/// `/api/health` — liveness + marcador de build (para confirmar, após um
+/// deploy, qual versão está de fato no ar). `versao` vem do `Cargo.toml`
+/// (compile time); `commit` do SHA que o Render injeta em runtime
+/// (`RENDER_GIT_COMMIT`) — ausente/vazio (ex.: rodando local) vira
+/// `"desconhecido"`. Corpo montado por `corpo_health` (função pura, testável).
 pub async fn health() -> Json<serde_json::Value> {
-    Json(json!({"ok": true}))
+    Json(corpo_health(std::env::var("RENDER_GIT_COMMIT").ok()))
+}
+
+fn corpo_health(commit: Option<String>) -> serde_json::Value {
+    let commit = commit
+        .map(|s| s.trim().chars().take(12).collect::<String>())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "desconhecido".to_string());
+    json!({
+        "ok": true,
+        "versao": env!("CARGO_PKG_VERSION"),
+        "commit": commit,
+    })
 }
 
 // -------------------------------------------------------------------- US1/US4 //
@@ -220,4 +237,27 @@ pub fn resposta_rate_limit() -> Response {
         })),
     )
         .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn health_expoe_ok_versao_e_commit_curto() {
+        let corpo = corpo_health(Some("1c7f3ecabcdef0123456789deadbeef".to_string()));
+        assert_eq!(corpo["ok"], true);
+        assert_eq!(corpo["versao"], env!("CARGO_PKG_VERSION"));
+        // SHA truncado a 12 chars (suficiente pra identificar o build).
+        assert_eq!(corpo["commit"], "1c7f3ecabcde");
+    }
+
+    #[test]
+    fn health_sem_commit_no_ambiente_vira_desconhecido() {
+        assert_eq!(corpo_health(None)["commit"], "desconhecido");
+        assert_eq!(
+            corpo_health(Some("   ".to_string()))["commit"],
+            "desconhecido"
+        );
+    }
 }
