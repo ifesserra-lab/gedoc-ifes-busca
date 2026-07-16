@@ -3,6 +3,8 @@
 //! busca quando não há um PDF já baixado em disco. Um dublê de `ChatIa`
 //! captura literalmente o texto que recebeu, provando que é o mesmo texto do
 //! documento (trecho ou PDF extraído), sem tocar rede real (Princípio VII).
+//! Spec 011: o resumo vai em lote (`chat_lote`), então o texto-fonte aparece
+//! dentro do prompt do lote — a checagem é por conteúdo (`contains`).
 
 use std::cell::RefCell;
 use std::fs;
@@ -14,10 +16,9 @@ use gedocs_core::services::resumidor::resumir_lote;
 
 const SIAPE: &str = "1998547";
 
-/// Dublê de `ChatIa` que devolve um resumo fixo e guarda o `usuario`
-/// recebido em cada chamada — permite provar que o texto enviado à IA é
-/// exatamente o texto-fonte do documento (R1: nunca inventa, nunca troca a
-/// fonte por outra coisa).
+/// Dublê de `ChatIa` que devolve um resumo fixo (no formato de lote) e guarda
+/// o `usuario` recebido em `chat_lote` — permite provar que o texto-fonte do
+/// documento (trecho ou PDF extraído) chega à IA (R1: nunca inventa/troca).
 struct ChatCaptura {
     resumo: String,
     recebido: RefCell<Vec<String>>,
@@ -34,12 +35,21 @@ impl ChatCaptura {
 
 impl ChatIa for ChatCaptura {
     fn chat(&self, _sistema: &str, _usuario: &str) -> Result<String, AppError> {
-        unreachable!("resumir_lote usa resumir(), não chat()")
+        unreachable!("resumir_lote usa chat_lote()")
     }
 
-    fn resumir(&self, _sistema: &str, usuario: &str) -> Result<String, AppError> {
+    fn chat_lote(
+        &self,
+        _sistema: &str,
+        usuario: &str,
+        _temperatura: f64,
+    ) -> Result<String, AppError> {
         self.recebido.borrow_mut().push(usuario.to_string());
-        Ok(self.resumo.clone())
+        // Resumo do índice 0 (os testes usam 1 documento por lote).
+        Ok(format!(
+            r#"{{"itens":[{{"i":0,"resumo":"{}"}}]}}"#,
+            self.resumo
+        ))
     }
 }
 
@@ -57,10 +67,9 @@ fn sem_pdf_baixado_o_resumo_usa_o_trecho_da_busca_como_texto_fonte() {
     resumir_lote(&mut docs, SIAPE, &chat, dir.path(), None);
 
     assert_eq!(docs[0].resumo.as_deref(), Some("Resumo fiel ao trecho."));
-    assert_eq!(
-        chat.recebido.borrow().as_slice(),
-        ["Determina a progressão do servidor SIAPE 1998547.".to_string()],
-        "o texto enviado à IA deve ser exatamente o trecho do documento (R1)"
+    assert!(
+        chat.recebido.borrow()[0].contains("Determina a progressão do servidor SIAPE 1998547."),
+        "o texto enviado à IA deve conter exatamente o trecho do documento (R1)"
     );
 }
 

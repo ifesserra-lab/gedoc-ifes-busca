@@ -35,6 +35,9 @@ const TEMPERATURE: f64 = 0.0;
 /// `src/resumir_mistral.py`).
 const MAX_TOKENS_RESUMO: u32 = 300;
 const TEMPERATURE_RESUMO: f64 = 0.2;
+/// Classificação/resumo em lote (specs 010/011): várias respostas por
+/// chamada exigem um orçamento de tokens bem maior que o de 1 item.
+const MAX_TOKENS_LOTE: u32 = 2000;
 
 /// Port para um serviço de chat de IA. `chat` é usado pela classificação
 /// (US5): resposta curta, determinística, sempre JSON. `resumir` (US6) é uma
@@ -43,10 +46,27 @@ const TEMPERATURE_RESUMO: f64 = 0.2;
 /// `chat`) sem exigir que sejam alterados. `MistralClient` sobrescreve
 /// `resumir` com os parâmetros corretos (mais tokens, temperatura maior, sem
 /// forçar JSON).
+///
+/// `chat_lote` (specs 010/011) envia vários itens numa única chamada —
+/// resposta sempre em JSON (`{"itens":[...]}`), `temperatura` escolhida pelo
+/// chamador (0.0 para classificação, 0.2 para resumo, mesmas temperaturas do
+/// caminho por-item). Tem um default que delega para `chat` — mesma
+/// justificativa de `resumir`: dublês de teste existentes continuam
+/// compilando sem alteração; quem precisar do comportamento de lote de fato
+/// sobrescreve (só `MistralClient` o faz em produção).
 pub trait ChatIa {
     fn chat(&self, sistema: &str, usuario: &str) -> Result<String, AppError>;
 
     fn resumir(&self, sistema: &str, usuario: &str) -> Result<String, AppError> {
+        self.chat(sistema, usuario)
+    }
+
+    fn chat_lote(
+        &self,
+        sistema: &str,
+        usuario: &str,
+        _temperatura: f64,
+    ) -> Result<String, AppError> {
         self.chat(sistema, usuario)
     }
 }
@@ -123,6 +143,28 @@ impl ChatIa for MistralClient {
             MAX_TOKENS_RESUMO,
             TEMPERATURE_RESUMO,
             false,
+        );
+        self.enviar(corpo)
+    }
+
+    /// Specs 010/011 — lote: mais tokens (`MAX_TOKENS_LOTE`, vários itens por
+    /// resposta), `temperatura` escolhida pelo chamador (0.0 classificação,
+    /// 0.2 resumo) e resposta sempre em JSON (`modo_json = true`) — tanto a
+    /// classificação quanto o resumo em lote pedem `{"itens":[...]}`. Mesmo
+    /// throttle/retry (R9) do `chat`/`resumir`, via `enviar`.
+    fn chat_lote(
+        &self,
+        sistema: &str,
+        usuario: &str,
+        temperatura: f64,
+    ) -> Result<String, AppError> {
+        let corpo = montar_corpo(
+            &self.modelo,
+            sistema,
+            usuario,
+            MAX_TOKENS_LOTE,
+            temperatura,
+            true,
         );
         self.enviar(corpo)
     }
@@ -356,6 +398,31 @@ mod tests {
             }
         }
         assert_eq!(FakeSoChat.resumir("s", "u").unwrap(), "via chat");
+    }
+
+    #[test]
+    fn chat_lote_tem_default_que_delega_para_chat_compatibilidade_com_dubles_existentes() {
+        struct FakeSoChat;
+        impl ChatIa for FakeSoChat {
+            fn chat(&self, _sistema: &str, _usuario: &str) -> Result<String, AppError> {
+                Ok("via chat".to_string())
+            }
+        }
+        assert_eq!(FakeSoChat.chat_lote("s", "u", 0.0).unwrap(), "via chat");
+    }
+
+    #[test]
+    fn montar_corpo_do_lote_usa_modo_json_e_max_tokens_maior() {
+        let corpo = montar_corpo(
+            "mistral-small-latest",
+            "sistema",
+            "usuario",
+            MAX_TOKENS_LOTE,
+            0.0,
+            true,
+        );
+        assert_eq!(corpo["max_tokens"], 2000);
+        assert_eq!(corpo["response_format"]["type"], "json_object");
     }
 
     #[test]
