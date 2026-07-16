@@ -69,8 +69,18 @@ impl<H: HttpPort> GedocRepositoryHttp<H> {
     }
 }
 
-impl<H: HttpPort> GedocRepository for GedocRepositoryHttp<H> {
-    fn buscar(&self, termo: &str, repositorio: &str) -> Result<(u32, Vec<Documento>), AppError> {
+impl<H: HttpPort> GedocRepositoryHttp<H> {
+    /// Repositórios (shards) do portal: `0`=Boletim, `1`=GeDoc,
+    /// `2`=Site/Reitoria. Cada um é um acervo distinto — documentos antigos
+    /// (ex.: 2006) vivem no Boletim, não no GeDoc.
+    const SHARDS: [&'static str; 3] = ["0", "1", "2"];
+
+    /// Busca num único repositório (shard), paginando até o total.
+    fn buscar_shard(
+        &self,
+        termo: &str,
+        repositorio: &str,
+    ) -> Result<(u32, Vec<Documento>), AppError> {
         let home = self.http.get(&format!("{BASE}{PAGE}"))?;
         let ids = descobrir_ids(&home)?;
         let url_action = format!("{BASE}{}", ids.action);
@@ -115,6 +125,41 @@ impl<H: HttpPort> GedocRepository for GedocRepositoryHttp<H> {
             .into_iter()
             .map(DocumentoParseado::para_documento)
             .collect();
+        Ok((total, docs))
+    }
+}
+
+impl<H: HttpPort> GedocRepository for GedocRepositoryHttp<H> {
+    fn buscar(&self, termo: &str, repositorio: &str) -> Result<(u32, Vec<Documento>), AppError> {
+        // Repositório concreto (0/1/2) → só ele. Caso contrário ("todos",
+        // default) → agrega TODOS os repositórios como o portal faz; sem isso,
+        // documentos antigos (Boletim, shard 0) não apareceriam.
+        if Self::SHARDS.contains(&repositorio) {
+            return self.buscar_shard(termo, repositorio);
+        }
+        let mut vistos: HashSet<String> = HashSet::new();
+        let mut docs: Vec<Documento> = Vec::new();
+        let mut total = 0u32;
+        let mut ultimo_erro = None;
+        for shard in Self::SHARDS {
+            match self.buscar_shard(termo, shard) {
+                Ok((t, ds)) => {
+                    total += t;
+                    for d in ds {
+                        if vistos.insert(d.link.clone()) {
+                            docs.push(d);
+                        }
+                    }
+                }
+                // R11: falha de um repositório não derruba os demais.
+                Err(e) => ultimo_erro = Some(e),
+            }
+        }
+        if docs.is_empty() {
+            if let Some(e) = ultimo_erro {
+                return Err(e);
+            }
+        }
         Ok((total, docs))
     }
 }
@@ -428,6 +473,70 @@ mod tests {
         assert!(docs
             .iter()
             .any(|d| d.link.contains("eeee5555ffff6666aaaa7777bbbb8888")));
+    }
+
+    /// Resposta mínima de 1 documento, `total=1` (sem paginação) — para testar
+    /// a agregação de repositórios sem enfileirar páginas.
+    fn resp_shard(hex32: &str, titulo: &str, data: &str) -> String {
+        format!(
+            "1 registro <a href=\"/faces/documento/{hex32}?inline\" \
+             class=\"resultadoBuscaLinhaAzul\">{titulo}</a> \
+             <span class=\"resultadoBuscaLinhaVerde\"> {data}</span>"
+        )
+    }
+
+    #[test]
+    fn buscar_todos_agrega_os_repositorios_e_inclui_docs_antigos() {
+        // Default ("todos"): agrega os 3 shards. Shard 0 (Boletim) traz um doc
+        // de 2006 que a busca só-GeDoc (shard 1) perdia — causa do bug real.
+        let boletim = resp_shard(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "PORTARIA 483 - 2006",
+            "02/08/2006",
+        );
+        let gedoc = resp_shard(
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "PORTARIA 10 - 2020",
+            "10/01/2020",
+        );
+        let site = resp_shard(
+            "cccccccccccccccccccccccccccccccc",
+            "PORTARIA 5 - 2019",
+            "05/05/2019",
+        );
+        let http = FakeHttp::novo(
+            FIXTURE_HOME,
+            &[boletim.as_str(), gedoc.as_str(), site.as_str()],
+        );
+        let repo = GedocRepositoryHttp::novo(http);
+
+        let (total, docs) = repo
+            .buscar("1466728", "todos")
+            .expect("deve agregar os repositórios");
+
+        assert_eq!(total, 3, "soma dos totais (1 por repositório)");
+        assert_eq!(docs.len(), 3);
+        assert!(
+            docs.iter().any(|d| d.data.as_deref() == Some("02/08/2006")),
+            "inclui o documento antigo do Boletim"
+        );
+    }
+
+    #[test]
+    fn buscar_repositorio_concreto_usa_so_aquele_shard() {
+        // Repositório "0" (Boletim) → um único shard (uma busca), sem agregar.
+        let boletim = resp_shard(
+            "dddddddddddddddddddddddddddddddd",
+            "PORTARIA 2006",
+            "02/08/2006",
+        );
+        let http = FakeHttp::novo(FIXTURE_HOME, &[boletim.as_str()]);
+        let repo = GedocRepositoryHttp::novo(http);
+
+        let (total, docs) = repo.buscar("1466728", "0").expect("shard único");
+
+        assert_eq!(total, 1);
+        assert_eq!(docs.len(), 1);
     }
 
     #[test]
