@@ -301,7 +301,19 @@ fn chave_do_ambiente() -> Option<String> {
     std::env::var("MISTRAL_API_KEY")
         .ok()
         .or_else(|| std::env::var("MISTRAL_KEY").ok())
-        .filter(|s| !s.trim().is_empty())
+        .and_then(|s| normalizar_chave(&s))
+}
+
+/// Normaliza uma chave crua vinda de uma variável de ambiente: apara espaços
+/// das bordas e remove um par de aspas simples/duplas acidental. Vazia → None.
+/// Espelha o tratamento que o caminho do `.env` já faz (`limpar_aspas` +
+/// `trim` em `parsear_env`): colar a chave no painel do Render com aspas ou um
+/// espaço/quebra-de-linha na ponta era enviado verbatim à Mistral e recusado
+/// com 401. Agora os dois caminhos limpam a chave da mesma forma.
+fn normalizar_chave(bruta: &str) -> Option<String> {
+    let limpa = limpar_aspas(bruta.trim());
+    let limpa = limpa.trim();
+    (!limpa.is_empty()).then(|| limpa.to_string())
 }
 
 /// Caminhos candidatos para o `.env`, na ordem em que são tentados — espelha
@@ -512,6 +524,23 @@ mod tests {
         let mut mapa = HashMap::new();
         mapa.insert("MISTRAL_KEY".to_string(), "   ".to_string());
         assert_eq!(extrair_key(&mapa), None, "chave só com espaços não conta");
+    }
+
+    #[test]
+    fn normalizar_chave_apara_espacos_e_remove_aspas_acidentais() {
+        // Gotcha do painel do Render: chave colada com aspas/espaço/quebra de
+        // linha era enviada verbatim e recusada (401). Agora é limpa.
+        assert_eq!(normalizar_chave("  abc123  "), Some("abc123".to_string()));
+        assert_eq!(normalizar_chave("\"abc123\""), Some("abc123".to_string()));
+        assert_eq!(normalizar_chave("'abc123'"), Some("abc123".to_string()));
+        assert_eq!(normalizar_chave("\"abc123\"\n"), Some("abc123".to_string()));
+    }
+
+    #[test]
+    fn normalizar_chave_vazia_ou_so_espacos_ou_aspas_vira_none() {
+        assert_eq!(normalizar_chave(""), None);
+        assert_eq!(normalizar_chave("   "), None);
+        assert_eq!(normalizar_chave("\"\""), None);
     }
 
     #[test]
