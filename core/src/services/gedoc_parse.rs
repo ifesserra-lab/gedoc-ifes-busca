@@ -16,8 +16,12 @@ static RE_ERRO: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"ui-messages-error-detail">([^<]*)"#).unwrap());
 static RE_TOTAL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"([\d.]+)\s*registro").unwrap());
 static RE_DOC: LazyLock<Regex> = LazyLock::new(|| {
+    // O link do título (class `resultadoBuscaLinhaAzul`) tem DOIS formatos,
+    // conforme o repositório: GeDoc → `.../documento/<32 hex>`; Boletim/Site →
+    // `.../visualizarDocumento/?d=<base64>`. Casar os dois (senão os docs do
+    // Boletim, ex.: atos de 2006, são contados mas não extraídos).
     Regex::new(
-        r#"(?s)<a href="([^"]*?/documento/[0-9A-Fa-f]{32}[^"]*)"[^>]*class="resultadoBuscaLinhaAzul">(.*?)</a>"#,
+        r#"(?s)<a href="([^"]*?(?:/documento/[0-9A-Fa-f]{32}|/visualizarDocumento/)[^"]*)"[^>]*class="resultadoBuscaLinhaAzul">(.*?)</a>"#,
     )
     .unwrap()
 });
@@ -123,11 +127,16 @@ pub fn parse_resposta(xml: &str) -> Result<RespostaParseada, AppError> {
             .captures(bloco)
             .and_then(|c| c.get(1))
             .map(|g| g.as_str().to_string());
+        // Junta TODOS os trechos destacados do bloco (não só o 1º): o termo
+        // casado (ex.: o SIAPE) pode estar num highlight posterior — pegar só
+        // o primeiro (cabeçalho) faria o filtro por SIAPE descartar um
+        // verdadeiro-positivo.
         let trecho = RE_HIGHLIGHT
-            .captures(bloco)
-            .and_then(|c| c.get(1))
+            .captures_iter(bloco)
+            .filter_map(|c| c.get(1))
             .map(|g| texto_limpo(g.as_str()))
-            .unwrap_or_default();
+            .collect::<Vec<_>>()
+            .join(" ");
         let siapes = RE_SIAPE
             .captures_iter(&trecho)
             .map(|c| c[1].to_string())
@@ -177,6 +186,33 @@ mod tests {
     const FIXTURE_ERRO: &str = include_str!("../../tests/fixtures/resposta_erro.xml");
     const FIXTURE_REDIRECT: &str = include_str!("../../tests/fixtures/resposta_redirect.xml");
     const FIXTURE_DUPLICADA: &str = include_str!("../../tests/fixtures/resposta_duplicada.xml");
+
+    #[test]
+    fn parseia_doc_do_boletim_com_link_visualizar_e_junta_highlights() {
+        // Boletim: link `/visualizarDocumento/?d=<base64>` (não `/documento/`)
+        // + o termo casado (1466728) num highlight posterior ao cabeçalho.
+        let xml = concat!(
+            "1 registro",
+            r#"<a href="http://gedoc.ifes.edu.br:80/visualizarDocumento/?d=QmFzZTY0RG9Cb2xldGlt" class="resultadoBuscaLinhaAzul">Portaria no. 483 - 2006 - PCCTAE</a>"#,
+            r#"<span class="resultadoBuscaLinhaVerde"> 02/08/2006</span>"#,
+            r#"<div class="highlight">SERVICO PUBLICO FEDERAL PORTARIA No 483 DE 2006</div>"#,
+            r#"<div class="highlight">LEZI JOSE FERREIRA 701015 CONTADOR E I 12 77 1466728 LORENA DE OLIVEIRA</div>"#,
+        );
+
+        let r = parse_resposta(xml).expect("parse ok");
+
+        assert_eq!(r.documentos.len(), 1, "link do Boletim deve ser extraído");
+        let d = &r.documentos[0];
+        assert!(d.link.contains("visualizarDocumento"));
+        assert_eq!(d.data.as_deref(), Some("02/08/2006"));
+        // trecho junta os dois highlights → contém o número casado (1466728),
+        // então o filtro por SIAPE o mantém (verdadeiro-positivo).
+        assert!(
+            d.trecho.contains("1466728"),
+            "trecho deve juntar todos os highlights (achou: {:?})",
+            d.trecho
+        );
+    }
 
     #[test]
     fn texto_limpo_remove_tags_e_decodifica_entidades() {
