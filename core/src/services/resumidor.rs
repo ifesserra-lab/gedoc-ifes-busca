@@ -16,6 +16,8 @@
 
 use std::path::Path;
 
+use serde_json::Value;
+
 use crate::domain::documento::Documento;
 use crate::domain::nome_arquivo::nome_arquivo;
 use crate::error::AppError;
@@ -41,6 +43,14 @@ const SEM_TEXTO: &str = "(sem texto)";
 /// qualquer que seja a origem.
 const MAX_CHARS: usize = 6000;
 
+/// Spec 011 — nº de documentos por chamada de resumo em lote. Pequeno porque o
+/// texto-fonte (PDF) é grande: 5 × `MAX_CHARS` já é um prompt considerável.
+const TAMANHO_LOTE_RESUMO: usize = 5;
+
+/// Temperatura do resumo (espelha `TEMPERATURE_RESUMO` do adapter) usada na
+/// chamada de lote (`ChatIa::chat_lote`).
+const TEMPERATURE_RESUMO: f64 = 0.2;
+
 /// Resume cada documento de `docs`, em lugar (`doc.resumo`). Mesma
 /// orquestração de `services::classificador::classificar_lote`: cache por
 /// link (R6) evita nova chamada de IA para um documento já resumido; a
@@ -53,9 +63,125 @@ pub fn resumir_lote<C: ChatIa + ?Sized>(
     dir_documentos: &Path,
     mut cache: Option<&mut CacheArquivo>,
 ) {
-    for doc in docs.iter_mut() {
-        doc.resumo = resolver_resumo(doc, siape, chat, dir_documentos, cache.as_deref_mut());
+    // 1) Cache hits (R6) e documentos sem texto-fonte ("(sem texto)") são
+    //    resolvidos na hora, sem IA — não entram em nenhum lote. Os demais
+    //    (têm texto e não estão cacheados) guardam (índice, texto) para o lote.
+    let mut pendentes: Vec<(usize, String)> = Vec::new();
+    for (i, doc) in docs.iter_mut().enumerate() {
+        if let Some(resumo) = cache.as_deref().and_then(|c| c.obter(&doc.link)) {
+            doc.resumo = Some(resumo.to_string());
+            continue;
+        }
+        let texto = texto_fonte(doc, siape, dir_documentos);
+        if texto.is_empty() {
+            doc.resumo = Some(SEM_TEXTO.to_string());
+            if let Some(c) = cache.as_deref_mut() {
+                c.inserir(doc.link.clone(), SEM_TEXTO.to_string());
+                let _ = c.salvar();
+            }
+            continue;
+        }
+        pendentes.push((i, texto));
     }
+
+    // 2) Os pendentes vão em blocos de TAMANHO_LOTE_RESUMO — 1 chamada por
+    //    bloco (spec 011) em vez de 1 por documento.
+    for bloco in pendentes.chunks(TAMANHO_LOTE_RESUMO) {
+        resumir_bloco_llm(
+            docs,
+            bloco,
+            siape,
+            chat,
+            dir_documentos,
+            cache.as_deref_mut(),
+        );
+    }
+}
+
+/// Resume um bloco (todos cache-miss, com texto) numa única chamada de IA
+/// (`ChatIa::chat_lote`), ancorando cada resumo por índice (FR-002/spec 011).
+/// Fidelidade (Princípio I): um índice ausente na resposta — ou a chamada do
+/// bloco falhando — cai no resumo **por-documento** (`resolver_resumo`) só
+/// para aquele item; nunca se aceita um resumo não confirmado como sendo de
+/// outro documento.
+fn resumir_bloco_llm<C: ChatIa + ?Sized>(
+    docs: &mut [Documento],
+    bloco: &[(usize, String)],
+    siape: &str,
+    chat: &C,
+    dir_documentos: &Path,
+    mut cache: Option<&mut CacheArquivo>,
+) {
+    let itens: Vec<(usize, &str)> = bloco
+        .iter()
+        .enumerate()
+        .map(|(pos, (_, texto))| (pos, texto.as_str()))
+        .collect();
+    let (sistema, usuario) = montar_prompt_resumo_lote(&itens);
+    let resultados = match chat.chat_lote(&sistema, &usuario, TEMPERATURE_RESUMO) {
+        Ok(resposta) => extrair_resumos_lote(&resposta, bloco.len()),
+        Err(_) => vec![None; bloco.len()],
+    };
+
+    for (pos, (i, _texto)) in bloco.iter().enumerate() {
+        match resultados.get(pos).cloned().flatten() {
+            Some(resumo) => {
+                docs[*i].resumo = Some(resumo.clone());
+                if let Some(c) = cache.as_deref_mut() {
+                    c.inserir(docs[*i].link.clone(), resumo);
+                    let _ = c.salvar();
+                }
+            }
+            // Item não confirmado no lote → resumo por-documento (fidelidade).
+            None => {
+                docs[*i].resumo =
+                    resolver_resumo(&docs[*i], siape, chat, dir_documentos, cache.as_deref_mut());
+            }
+        }
+    }
+}
+
+/// Monta (sistema, usuário) para o resumo em lote: cada documento numerado por
+/// índice `[i]`; a IA responde só com `{"itens":[{"i":<indice>,"resumo":"..."}]}`.
+fn montar_prompt_resumo_lote(itens: &[(usize, &str)]) -> (String, String) {
+    let sistema = format!(
+        "{SISTEMA} Você recebe VÁRIOS documentos, cada um com um índice [i]. \
+Resuma CADA documento (2-3 frases, fiel ao texto dele, sem misturar com os \
+outros). Responda apenas em JSON: \
+{{\"itens\":[{{\"i\":<indice>,\"resumo\":\"<resumo>\"}}]}}."
+    );
+    let corpo = itens
+        .iter()
+        .map(|(i, texto)| format!("[{i}]\n{texto}"))
+        .collect::<Vec<_>>()
+        .join("\n\n---\n\n");
+    (sistema, format!("Documentos:\n\n{corpo}"))
+}
+
+/// Extrai os resumos do JSON de lote (`{"itens":[{"i","resumo"}]}`), ancorados
+/// por índice. Devolve `Vec` de tamanho `n`: `Some(resumo)` para cada índice
+/// confirmado (não vazio), `None` para ausente. JSON inválido → todos `None`
+/// (o chamador faz o fallback por-documento). Nunca panica (R11).
+fn extrair_resumos_lote(resposta: &str, n: usize) -> Vec<Option<String>> {
+    let mut out = vec![None; n];
+    let Ok(valor) = serde_json::from_str::<Value>(resposta) else {
+        return out;
+    };
+    let Some(itens) = valor.get("itens").and_then(Value::as_array) else {
+        return out;
+    };
+    for item in itens {
+        let indice = item.get("i").and_then(Value::as_u64);
+        let resumo = item.get("resumo").and_then(Value::as_str);
+        if let (Some(indice), Some(resumo)) = (indice, resumo) {
+            let indice = indice as usize;
+            let resumo = resumo.trim();
+            if indice < n && !resumo.is_empty() {
+                out[indice] = Some(resumo.to_string());
+            }
+        }
+    }
+    out
 }
 
 /// Resolve o resumo de `doc`: cache (hit) ou IA (miss); só grava no cache o
@@ -149,15 +275,20 @@ mod tests {
     const PDF_FIXTURE: &[u8] = include_bytes!("../../tests/fixtures/documento_teste.pdf");
     const SIAPE_TESTE: &str = "1998547";
 
+    /// Dublê com filas separadas: `lote` (respostas de `chat_lote`, spec 011)
+    /// e `doc` (respostas do fallback por-documento, `resumir`). `chamadas`
+    /// conta ambas.
     struct ChatFake {
-        respostas: RefCell<VecDeque<Result<String, AppError>>>,
+        lote: RefCell<VecDeque<Result<String, AppError>>>,
+        doc: RefCell<VecDeque<Result<String, AppError>>>,
         chamadas: RefCell<u32>,
     }
 
     impl ChatFake {
-        fn com_respostas(respostas: Vec<Result<String, AppError>>) -> Self {
+        fn novo(lote: Vec<Result<String, AppError>>, doc: Vec<Result<String, AppError>>) -> Self {
             Self {
-                respostas: RefCell::new(respostas.into()),
+                lote: RefCell::new(lote.into()),
+                doc: RefCell::new(doc.into()),
                 chamadas: RefCell::new(0),
             }
         }
@@ -165,15 +296,28 @@ mod tests {
 
     impl ChatIa for ChatFake {
         fn chat(&self, _sistema: &str, _usuario: &str) -> Result<String, AppError> {
-            unreachable!("resumir_lote usa resumir(), não chat()")
+            unreachable!("resumir_lote usa chat_lote()/resumir(), não chat()")
         }
 
         fn resumir(&self, _sistema: &str, _usuario: &str) -> Result<String, AppError> {
             *self.chamadas.borrow_mut() += 1;
-            self.respostas
+            self.doc
                 .borrow_mut()
                 .pop_front()
                 .unwrap_or_else(|| Ok("resumo padrão".to_string()))
+        }
+
+        fn chat_lote(
+            &self,
+            _sistema: &str,
+            _usuario: &str,
+            _temperatura: f64,
+        ) -> Result<String, AppError> {
+            *self.chamadas.borrow_mut() += 1;
+            self.lote
+                .borrow_mut()
+                .pop_front()
+                .unwrap_or_else(|| Ok(r#"{"itens":[]}"#.to_string()))
         }
     }
 
@@ -253,7 +397,12 @@ mod tests {
     #[test]
     fn resume_com_sucesso_a_partir_do_trecho() {
         let dir = tempdir().expect("tempdir");
-        let chat = ChatFake::com_respostas(vec![Ok("Resumo do trecho.".to_string())]);
+        let chat = ChatFake::novo(
+            vec![Ok(
+                r#"{"itens":[{"i":0,"resumo":"Resumo do trecho."}]}"#.to_string()
+            )],
+            vec![],
+        );
         let mut docs = vec![doc("l1", "PORTARIA Nº 1 - 2024 - Assunto")];
         docs[0].trecho = Some("Determina a progressão do servidor.".to_string());
 
@@ -266,7 +415,7 @@ mod tests {
     #[test]
     fn sem_nenhum_texto_fonte_usa_o_marcador_sem_texto_sem_chamar_a_ia() {
         let dir = tempdir().expect("tempdir");
-        let chat = ChatFake::com_respostas(vec![]);
+        let chat = ChatFake::novo(vec![], vec![]);
         let mut docs = vec![doc("l1", "PORTARIA Nº 1 - 2024 - Assunto")]; // sem trecho, sem arquivo
 
         resumir_lote(&mut docs, SIAPE_TESTE, &chat, dir.path(), None);
@@ -278,12 +427,16 @@ mod tests {
     #[test]
     fn falha_de_um_documento_nao_aborta_o_lote_r11() {
         let dir = tempdir().expect("tempdir");
-        let chat = ChatFake::com_respostas(vec![
-            Err(AppError::FalhaIA {
+        // O lote confirma só o índice 1 → o doc 0 cai no fallback por-doc, que
+        // aqui falha → resumo None (R11); o doc 1 vem do lote.
+        let chat = ChatFake::novo(
+            vec![Ok(
+                r#"{"itens":[{"i":1,"resumo":"Resumo do segundo."}]}"#.to_string()
+            )],
+            vec![Err(AppError::FalhaIA {
                 motivo: "instável".to_string(),
-            }),
-            Ok("Resumo do segundo.".to_string()),
-        ]);
+            })],
+        );
         let mut docs = vec![
             doc("l1", "PORTARIA Nº 1 - 2024 - Assunto A"),
             doc("l2", "PORTARIA Nº 2 - 2024 - Assunto B"),
@@ -304,7 +457,12 @@ mod tests {
     fn cache_evita_chamar_a_ia_de_novo_para_o_mesmo_link_r6() {
         let dir = tempdir().expect("tempdir");
         let mut cache = CacheArquivo::carregar(dir.path().join("resumo.json"));
-        let chat = ChatFake::com_respostas(vec![Ok("Resumo cacheado.".to_string())]);
+        let chat = ChatFake::novo(
+            vec![Ok(
+                r#"{"itens":[{"i":0,"resumo":"Resumo cacheado."}]}"#.to_string()
+            )],
+            vec![],
+        );
 
         let mut primeira = vec![doc("l1", "PORTARIA Nº 1 - 2024 - Assunto")];
         primeira[0].trecho = Some("trecho".to_string());
@@ -339,12 +497,19 @@ mod tests {
     fn nao_cacheia_resultado_de_falha_permitindo_nova_tentativa() {
         let dir = tempdir().expect("tempdir");
         let mut cache = CacheArquivo::carregar(dir.path().join("resumo.json"));
-        let chat = ChatFake::com_respostas(vec![
-            Err(AppError::FalhaIA {
+        // 1ª busca: lote falha e fallback por-doc falha → None, não cacheia.
+        // 2ª busca: lote responde → cacheia.
+        let chat = ChatFake::novo(
+            vec![
+                Err(AppError::FalhaIA {
+                    motivo: "instável".to_string(),
+                }),
+                Ok(r#"{"itens":[{"i":0,"resumo":"Resumo na 2ª tentativa."}]}"#.to_string()),
+            ],
+            vec![Err(AppError::FalhaIA {
                 motivo: "instável".to_string(),
-            }),
-            Ok("Resumo na 2ª tentativa.".to_string()),
-        ]);
+            })],
+        );
 
         let mut primeira = vec![doc("l1", "PORTARIA Nº 1 - 2024 - Assunto")];
         primeira[0].trecho = Some("trecho".to_string());
@@ -368,13 +533,9 @@ mod tests {
         );
 
         assert_eq!(
-            *chat.chamadas.borrow(),
-            2,
-            "sem cache de erro, tenta a IA de novo"
-        );
-        assert_eq!(
             segunda[0].resumo.as_deref(),
-            Some("Resumo na 2ª tentativa.")
+            Some("Resumo na 2ª tentativa."),
+            "sem cache de erro, a 2ª tentativa via lote resume e cacheia"
         );
     }
 }

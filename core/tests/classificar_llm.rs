@@ -32,6 +32,19 @@ impl ChatIa for ChatFake {
         *self.chamadas.borrow_mut() += 1;
         Ok(self.resposta.clone())
     }
+
+    // Spec 010 — `classificar_lote` usa o caminho de lote (`chat_lote`). Este
+    // dublê devolve a resposta no formato de lote (`{"itens":[...]}`) para o
+    // teste de cache exercitar 1 chamada por bloco (não 1 por documento).
+    fn chat_lote(
+        &self,
+        _sistema: &str,
+        _usuario: &str,
+        _temperatura: f64,
+    ) -> Result<String, AppError> {
+        *self.chamadas.borrow_mut() += 1;
+        Ok(r#"{"itens":[{"i":0,"categoria":"Progressão"}]}"#.to_string())
+    }
 }
 
 fn categorias_padrao() -> Vec<Categoria> {

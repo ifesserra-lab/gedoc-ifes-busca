@@ -19,6 +19,11 @@ use crate::ports::classificador::{Classificador, ClassificadorLlm, Classificador
 use crate::ports::ia::ChatIa;
 use crate::services::cache::CacheArquivo;
 
+/// Spec 010 — nº de documentos por chamada de classificação em lote. Título +
+/// trecho truncado (~300 chars) são curtos, então este valor cabe bem dentro
+/// do orçamento de tokens (`ports::ia::MAX_TOKENS_LOTE`); ajustável.
+const TAMANHO_LOTE_CLASSIFICACAO: usize = 15;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ModoClassificacao {
     #[default]
@@ -41,6 +46,16 @@ impl ModoClassificacao {
 
 /// Classifica cada documento de `docs`, em lugar. Ver decisão de design no
 /// doc do módulo para o papel de `chat`/`cache` conforme `modo`.
+///
+/// Spec 010 (modo `Llm`): os documentos já cacheados (R6) são resolvidos na
+/// hora, sem entrar em nenhum lote; os demais são divididos em blocos de até
+/// `TAMANHO_LOTE_CLASSIFICACAO` e cada bloco vira **uma** chamada de IA
+/// (`ClassificadorLlm::classificar_lote_via_ia`), em vez de uma chamada por
+/// documento — reduz drasticamente o nº de chamadas em buscas grandes
+/// (FR-001). Cada item é ancorado por índice (FR-002); um índice ausente na
+/// resposta — ou o bloco inteiro falhando — cai no caminho por-documento já
+/// existente (`classificar_com_cache`, que por sua vez cai em palavra-chave
+/// se a IA falhar de novo), sem abortar o restante da busca (FR-004/R11).
 pub fn classificar_lote(
     docs: &mut [Documento],
     categorias: &[Categoria],
@@ -50,17 +65,62 @@ pub fn classificar_lote(
 ) {
     // Sem `chat` configurado (ex.: chave de IA ausente) o modo `Llm`
     // degrada para `Keyword` no lote inteiro — nunca aborta a busca (R11).
-    let classificador_llm = match modo {
+    let Some(llm) = (match modo {
         ModoClassificacao::Llm => chat.map(ClassificadorLlm::novo),
         ModoClassificacao::Keyword => None,
+    }) else {
+        for doc in docs.iter_mut() {
+            doc.categoria = Some(ClassificadorPalavraChave.classificar(doc, categorias));
+        }
+        return;
     };
 
-    for doc in docs.iter_mut() {
-        let categoria = match &classificador_llm {
-            Some(llm) => classificar_com_cache(llm, cache.as_deref_mut(), doc, categorias),
-            None => ClassificadorPalavraChave.classificar(doc, categorias),
+    // 1) Cache hits (R6) resolvidos na hora — não entram em nenhum lote.
+    let mut pendentes = Vec::new();
+    for (i, doc) in docs.iter_mut().enumerate() {
+        match cache.as_deref().and_then(|c| c.obter(&doc.link)) {
+            Some(categoria) => doc.categoria = Some(categoria.to_string()),
+            None => pendentes.push(i),
+        }
+    }
+
+    // 2) Os não-cacheados vão em blocos de TAMANHO_LOTE_CLASSIFICACAO.
+    for bloco in pendentes.chunks(TAMANHO_LOTE_CLASSIFICACAO) {
+        classificar_bloco_llm(docs, bloco, categorias, &llm, cache.as_deref_mut());
+    }
+}
+
+/// Classifica um único bloco (`indices`, todos cache-miss) via
+/// `classificar_lote_via_ia`. Cada item confirmado por índice é cacheado
+/// (R6); um índice ausente na resposta — ou a chamada do bloco falhando por
+/// completo (`Err`) — cai no caminho por-documento (`classificar_com_cache`)
+/// só para aquele item, sem afetar os demais do bloco (FR-004).
+fn classificar_bloco_llm<C: ChatIa + ?Sized>(
+    docs: &mut [Documento],
+    indices: &[usize],
+    categorias: &[Categoria],
+    llm: &ClassificadorLlm<'_, C>,
+    mut cache: Option<&mut CacheArquivo>,
+) {
+    let refs: Vec<&Documento> = indices.iter().map(|&i| &docs[i]).collect();
+    let resultados = llm
+        .classificar_lote_via_ia(&refs, categorias)
+        .unwrap_or_else(|_| vec![None; indices.len()]);
+
+    for (pos, &i) in indices.iter().enumerate() {
+        let categoria = match resultados.get(pos).cloned().flatten() {
+            Some(categoria) => {
+                if let Some(cache) = cache.as_deref_mut() {
+                    cache.inserir(docs[i].link.clone(), categoria.clone());
+                    // Falha ao persistir o cache não pode abortar a
+                    // classificação do bloco (R11).
+                    let _ = cache.salvar();
+                }
+                categoria
+            }
+            None => classificar_com_cache(llm, cache.as_deref_mut(), &docs[i], categorias),
         };
-        doc.categoria = Some(categoria);
+        docs[i].categoria = Some(categoria);
     }
 }
 
@@ -103,16 +163,34 @@ mod tests {
 
     use super::*;
 
+    /// Dublê de `ChatIa` com filas independentes para a chamada de lote
+    /// (`chat_lote`, usada por `classificar_lote_via_ia`) e para o fallback
+    /// por-documento (`chat`, usado por `classificar_via_ia`) — permite a
+    /// cada teste controlar precisamente o que a IA responde em cada
+    /// caminho, já que spec 010 troca 1-chamada-por-doc por 1-chamada-por-bloco
+    /// mais o fallback por item ausente/bloco com erro.
     struct ChatFake {
-        respostas: RefCell<VecDeque<Result<String, AppError>>>,
+        respostas_lote: RefCell<VecDeque<Result<String, AppError>>>,
+        respostas_doc: RefCell<VecDeque<Result<String, AppError>>>,
         chamadas: RefCell<u32>,
     }
 
     impl ChatFake {
-        fn com_respostas(respostas: Vec<Result<String, AppError>>) -> Self {
+        /// Configura só as respostas do caminho de lote (a maioria dos
+        /// testes não precisa do fallback por-documento).
+        fn com_respostas_lote(respostas: Vec<Result<String, AppError>>) -> Self {
             Self {
-                respostas: RefCell::new(respostas.into()),
+                respostas_lote: RefCell::new(respostas.into()),
+                respostas_doc: RefCell::new(VecDeque::new()),
                 chamadas: RefCell::new(0),
+            }
+        }
+
+        /// Acrescenta respostas do fallback por-documento (`chat`).
+        fn com_respostas_doc(self, respostas: Vec<Result<String, AppError>>) -> Self {
+            Self {
+                respostas_doc: RefCell::new(respostas.into()),
+                ..self
             }
         }
     }
@@ -120,10 +198,23 @@ mod tests {
     impl ChatIa for ChatFake {
         fn chat(&self, _sistema: &str, _usuario: &str) -> Result<String, AppError> {
             *self.chamadas.borrow_mut() += 1;
-            self.respostas
+            self.respostas_doc
                 .borrow_mut()
                 .pop_front()
                 .unwrap_or_else(|| Ok("{}".to_string()))
+        }
+
+        fn chat_lote(
+            &self,
+            _sistema: &str,
+            _usuario: &str,
+            _temperatura: f64,
+        ) -> Result<String, AppError> {
+            *self.chamadas.borrow_mut() += 1;
+            self.respostas_lote
+                .borrow_mut()
+                .pop_front()
+                .unwrap_or_else(|| Ok(r#"{"itens":[]}"#.to_string()))
         }
     }
 
@@ -182,8 +273,10 @@ mod tests {
     // --- classificar_lote: llm ------------------------------------------------- //
 
     #[test]
-    fn modo_llm_usa_a_resposta_da_ia() {
-        let chat = ChatFake::com_respostas(vec![Ok(r#"{"categoria":"Progressão"}"#.to_string())]);
+    fn modo_llm_usa_a_resposta_da_ia_em_1_chamada_de_lote() {
+        let chat = ChatFake::com_respostas_lote(vec![Ok(
+            r#"{"itens":[{"i":0,"categoria":"Progressão"}]}"#.to_string(),
+        )]);
         let mut docs = vec![doc("l1", "algo qualquer")];
         classificar_lote(
             &mut docs,
@@ -193,7 +286,35 @@ mod tests {
             None,
         );
         assert_eq!(docs[0].categoria.as_deref(), Some("Progressão"));
-        assert_eq!(*chat.chamadas.borrow(), 1);
+        assert_eq!(
+            *chat.chamadas.borrow(),
+            1,
+            "1 documento -> 1 chamada de lote, sem precisar de fallback"
+        );
+    }
+
+    #[test]
+    fn modo_llm_classifica_varios_documentos_em_1_unica_chamada_de_lote() {
+        let chat = ChatFake::com_respostas_lote(vec![Ok(r#"{"itens":[
+            {"i":0,"categoria":"Progressão"},
+            {"i":1,"categoria":"Outros"}
+        ]}"#
+        .to_string())]);
+        let mut docs = vec![doc("l1", "algo"), doc("l2", "outra coisa")];
+        classificar_lote(
+            &mut docs,
+            &categorias_teste(),
+            ModoClassificacao::Llm,
+            Some(&chat),
+            None,
+        );
+        assert_eq!(docs[0].categoria.as_deref(), Some("Progressão"));
+        assert_eq!(docs[1].categoria.as_deref(), Some("Outros"));
+        assert_eq!(
+            *chat.chamadas.borrow(),
+            1,
+            "N documentos no mesmo bloco -> 1 única chamada (SC-001)"
+        );
     }
 
     #[test]
@@ -217,7 +338,9 @@ mod tests {
     fn modo_llm_cache_evita_chamar_a_ia_de_novo_para_o_mesmo_link_r6() {
         let dir = tempdir().expect("tempdir");
         let mut cache = CacheArquivo::carregar(dir.path().join("cache.json"));
-        let chat = ChatFake::com_respostas(vec![Ok(r#"{"categoria":"Progressão"}"#.to_string())]);
+        let chat = ChatFake::com_respostas_lote(vec![Ok(
+            r#"{"itens":[{"i":0,"categoria":"Progressão"}]}"#.to_string(),
+        )]);
         let categorias = categorias_teste();
 
         let mut primeira = vec![doc("l1", "x")];
@@ -248,16 +371,22 @@ mod tests {
     }
 
     #[test]
-    fn modo_llm_falha_de_um_doc_cai_em_keyword_sem_abortar_o_lote_r11() {
-        let chat = ChatFake::com_respostas(vec![
+    fn modo_llm_falha_do_bloco_inteiro_cai_no_fallback_por_documento_sem_abortar_r11() {
+        // A chamada de lote falha por completo (erro de comunicação) -> cada
+        // documento do bloco cai no fallback por-documento
+        // (`classificar_via_ia`); se este também falhar, cai em keyword.
+        let chat = ChatFake::com_respostas_lote(vec![Err(AppError::FalhaIA {
+            motivo: "instável".to_string(),
+        })])
+        .com_respostas_doc(vec![
             Err(AppError::FalhaIA {
                 motivo: "instável".to_string(),
-            }),
-            Ok(r#"{"categoria":"Progressão"}"#.to_string()),
+            }), // fallback do doc1 também falha -> keyword
+            Ok(r#"{"categoria":"Progressão"}"#.to_string()), // fallback do doc2 funciona
         ]);
         let mut docs = vec![
-            doc("l1", "PORTARIA Nº 1 - 2024 - Progressão funcional"), // IA falha -> keyword
-            doc("l2", "qualquer coisa"),                              // IA responde certo
+            doc("l1", "PORTARIA Nº 1 - 2024 - Progressão funcional"), // IA falha (lote+fallback) -> keyword
+            doc("l2", "qualquer coisa"), // IA responde certo no fallback por-documento
         ];
         classificar_lote(
             &mut docs,
@@ -270,21 +399,57 @@ mod tests {
         assert_eq!(
             docs[0].categoria.as_deref(),
             Some("Progressão"),
-            "falha na IA cai em keyword (R11)"
+            "falha do bloco inteiro cai no fallback por-documento; falha deste cai em keyword (R11)"
         );
         assert_eq!(docs[1].categoria.as_deref(), Some("Progressão"));
+    }
+
+    #[test]
+    fn modo_llm_item_ausente_na_resposta_do_bloco_cai_no_fallback_por_documento() {
+        // A chamada de lote responde só para o item 1 -> o item 0 (ausente)
+        // cai no fallback por-documento (`classificar_via_ia`), sem afetar o
+        // item que já veio confirmado no bloco (FR-002/FR-004).
+        let chat = ChatFake::com_respostas_lote(vec![Ok(
+            r#"{"itens":[{"i":1,"categoria":"Progressão"}]}"#.to_string(),
+        )])
+        .com_respostas_doc(vec![Ok(r#"{"categoria":"Outros"}"#.to_string())]);
+        let mut docs = vec![
+            doc("l1", "qualquer coisa"), // ausente no lote -> fallback por-documento
+            doc("l2", "outra coisa"),    // confirmado no lote
+        ];
+        classificar_lote(
+            &mut docs,
+            &categorias_teste(),
+            ModoClassificacao::Llm,
+            Some(&chat),
+            None,
+        );
+
+        assert_eq!(docs[0].categoria.as_deref(), Some("Outros"));
+        assert_eq!(
+            docs[1].categoria.as_deref(),
+            Some("Progressão"),
+            "item confirmado no lote não deve ser afetado pelo fallback do outro"
+        );
     }
 
     #[test]
     fn modo_llm_nao_cacheia_resultado_de_falha_permitindo_nova_tentativa() {
         let dir = tempdir().expect("tempdir");
         let mut cache = CacheArquivo::carregar(dir.path().join("cache.json"));
-        let chat = ChatFake::com_respostas(vec![
+        // 1ª busca: o lote falha E o fallback por-documento falha → o
+        // documento é classificado por palavra-chave, mas nada é cacheado
+        // (só resultado de IA bem-sucedido entra no cache, R6). 2ª busca: o
+        // lote responde e o resultado é cacheado.
+        let chat = ChatFake::com_respostas_lote(vec![
             Err(AppError::FalhaIA {
                 motivo: "instável".to_string(),
             }),
-            Ok(r#"{"categoria":"Progressão"}"#.to_string()),
-        ]);
+            Ok(r#"{"itens":[{"i":0,"categoria":"Progressão"}]}"#.to_string()),
+        ])
+        .com_respostas_doc(vec![Err(AppError::FalhaIA {
+            motivo: "instável".to_string(),
+        })]);
         let categorias = categorias_teste();
         let titulo = "PORTARIA Nº 1 - 2024 - Progressão funcional";
 
@@ -307,10 +472,9 @@ mod tests {
             Some(&mut cache),
         );
         assert_eq!(
-            *chat.chamadas.borrow(),
-            2,
-            "sem cache de erro, tenta a IA de novo"
+            cache.obter("l1"),
+            Some("Progressão"),
+            "sem cache de erro, a 2ª tentativa via lote é cacheada"
         );
-        assert_eq!(cache.obter("l1"), Some("Progressão"));
     }
 }
