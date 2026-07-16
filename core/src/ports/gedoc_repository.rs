@@ -10,8 +10,13 @@ use crate::domain::documento::Documento;
 use crate::error::AppError;
 
 /// Códigos de repositório aceitos pelo portal (ver `docs/ontology.yaml`
-/// `RepositorioCodigo`): `0` Boletim, `1` GeDoc (padrão), `2` Site.
-pub const REPOSITORIO_PADRAO: &str = "1";
+/// `RepositorioCodigo`): `0` Boletim, `1` GeDoc, `2` Site.
+///
+/// Padrão = **todos** os repositórios (o portal agrega Boletim+GeDoc+Site).
+/// Buscar só o GeDoc perdia documentos antigos que vivem no Boletim (ex.: atos
+/// de 2006). Um código concreto (`0`/`1`/`2`) restringe a esse repositório; o
+/// sentinela `"todos"` (default) faz `GedocRepositoryHttp` agregar os três.
+pub const REPOSITORIO_PADRAO: &str = "todos";
 
 pub trait GedocRepository {
     /// Busca todos os documentos (todas as páginas) para `termo` no
