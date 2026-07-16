@@ -26,7 +26,11 @@ pub async fn buscar_por_siape(
     app: AppHandle,
     input: BuscarPorSiapeInput,
 ) -> Result<ResultadoView, AppError> {
-    siape::validar(&input.siape)?;
+    // Modo `nome` (spec 009): termo livre, não valida SIAPE.
+    let por_nome = input.por_nome();
+    if !por_nome {
+        siape::validar(&input.siape)?;
+    }
 
     let modo = ModoClassificacao::from_entrada(input.modo.as_deref());
     // Caches só são relevantes no modo `llm`.
@@ -52,6 +56,7 @@ pub async fn buscar_por_siape(
         dir_documentos,
         cache_resumo_path,
         categorias_path,
+        por_nome,
     )
     .await
 }

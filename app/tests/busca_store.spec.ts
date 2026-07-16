@@ -133,7 +133,7 @@ describe("useBuscaStore — filtro por categoria e estado vazio", () => {
     expect(store.usarIa).toBe(false);
     await store.buscar();
 
-    expect(espiao).toHaveBeenCalledWith({ siape: "1998547", modo: "keyword" });
+    expect(espiao).toHaveBeenCalledWith({ siape: "1998547", modo: "keyword", por: "siape" });
   });
 
   it("com usarIa ligado, busca envia modo 'llm' (US6)", async () => {
@@ -146,7 +146,45 @@ describe("useBuscaStore — filtro por categoria e estado vazio", () => {
 
     await store.buscar();
 
-    expect(espiao).toHaveBeenCalledWith({ siape: "1998547", modo: "llm" });
+    expect(espiao).toHaveBeenCalledWith({ siape: "1998547", modo: "llm", por: "siape" });
+  });
+
+  it("modo nome: termo não-SIAPE é válido e busca envia por 'nome' (spec 009)", async () => {
+    const store = useBuscaStore();
+    const espiao = vi
+      .spyOn(ipc, "buscarPorSiape")
+      .mockResolvedValue(mockResultado({ total: 0, categorias: [] }));
+    store.porNome = true;
+    store.siape = "joão silva";
+
+    expect(store.consultaValida).toBe(true);
+    await store.buscar();
+
+    expect(store.estado).not.toBe("erro");
+    expect(espiao).toHaveBeenCalledWith({ siape: "joão silva", modo: "keyword", por: "nome" });
+  });
+
+  it("modo nome: termo vazio é inválido e não busca", async () => {
+    const store = useBuscaStore();
+    const espiao = vi.spyOn(ipc, "buscarPorSiape");
+    store.porNome = true;
+    store.siape = "   ";
+
+    await store.buscar();
+
+    expect(store.estado).toBe("erro");
+    expect(espiao).not.toHaveBeenCalled();
+  });
+
+  it("modo SIAPE (padrão): termo não-SIAPE é inválido e não busca", async () => {
+    const store = useBuscaStore();
+    const espiao = vi.spyOn(ipc, "buscarPorSiape");
+    store.siape = "joão";
+
+    await store.buscar();
+
+    expect(store.estado).toBe("erro");
+    expect(espiao).not.toHaveBeenCalled();
   });
 
   it("reiniciar limpa a categoria selecionada junto com o restante do estado", async () => {

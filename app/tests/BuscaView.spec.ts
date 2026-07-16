@@ -36,7 +36,7 @@ describe("BuscaView", () => {
   it("toggle de IA começa desligado e tem um alvo clicável acessível (>= 40px, Constituição XII)", () => {
     const wrapper = mount(BuscaView);
 
-    const toggle = wrapper.get('[role="switch"]');
+    const toggle = wrapper.get("#usar-ia");
     expect(toggle.attributes("aria-checked")).toBe("false");
     expect(toggle.attributes("id")).toBe("usar-ia");
     // "alvo-minimo" (min. 40px) fica no agrupamento switch+rótulo — o texto
@@ -51,10 +51,10 @@ describe("BuscaView", () => {
     const wrapper = mount(BuscaView);
     const store = useBuscaStore();
 
-    await wrapper.get('[role="switch"]').trigger("click");
+    await wrapper.get("#usar-ia").trigger("click");
 
     expect(store.usarIa).toBe(true);
-    expect(wrapper.get('[role="switch"]').attributes("aria-checked")).toBe("true");
+    expect(wrapper.get("#usar-ia").attributes("aria-checked")).toBe("true");
   });
 
   it("com o toggle ligado, a busca envia modo 'llm' ao backend", async () => {
@@ -63,10 +63,26 @@ describe("BuscaView", () => {
       .mockResolvedValue({ termo: "1998547", total: 0, categorias: [], tem_pdf: false });
     const wrapper = mount(BuscaView);
 
-    await wrapper.get('[role="switch"]').trigger("click");
+    await wrapper.get("#usar-ia").trigger("click");
     await wrapper.find("#siape").setValue("1998547");
     await wrapper.find("form").trigger("submit");
 
-    expect(espiao).toHaveBeenCalledWith({ siape: "1998547", modo: "llm" });
+    expect(espiao).toHaveBeenCalledWith({ siape: "1998547", modo: "llm", por: "siape" });
+  });
+
+  it("modo nome: ligar o toggle 'por nome' aceita termo livre e envia por 'nome' (spec 009)", async () => {
+    const espiao = vi
+      .spyOn(ipc, "buscarPorSiape")
+      .mockResolvedValue({ termo: "joão silva", total: 0, categorias: [], tem_pdf: false });
+    const wrapper = mount(BuscaView);
+    const store = useBuscaStore();
+
+    await wrapper.get("#por-nome").trigger("click");
+    expect(store.porNome).toBe(true);
+
+    await wrapper.find("#siape").setValue("joão silva");
+    await wrapper.find("form").trigger("submit");
+
+    expect(espiao).toHaveBeenCalledWith({ siape: "joão silva", modo: "keyword", por: "nome" });
   });
 });

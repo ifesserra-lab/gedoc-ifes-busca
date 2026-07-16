@@ -119,13 +119,22 @@ pub fn executar_com_repo<R: GedocRepository>(
     cache_categoria: Option<&mut CacheArquivo>,
     dir_documentos: &Path,
     cache_resumo: Option<&mut CacheArquivo>,
+    por_nome: bool,
 ) -> Result<ResultadoView, AppError> {
-    siape::validar(siape)?;
+    // Modo `nome` (spec 009): termo livre (não valida SIAPE) e sem filtro
+    // anti-falso-positivo por SIAPE — mostra o que o portal retornou.
+    if !por_nome {
+        siape::validar(siape)?;
+    }
     let repositorio = repositorio.unwrap_or(REPOSITORIO_PADRAO);
 
     let (total, mut docs) = repo.buscar(siape, repositorio)?;
-    filtro::filtrar_por_siape(&mut docs, siape);
-    let (mut validos, _descartados) = filtro::separar(docs);
+    let mut validos = if por_nome {
+        docs
+    } else {
+        filtro::filtrar_por_siape(&mut docs, siape);
+        filtro::separar(docs).0
+    };
 
     classificar_lote(&mut validos, categorias, modo, chat, cache_categoria);
 
@@ -146,6 +155,7 @@ pub fn executar_com_repo<R: GedocRepository>(
 /// `spawn_blocking`, toda a I/O bloqueante. Recebe os caminhos já resolvidos
 /// pela borda (comando Tauri ou handler HTTP). `categorias_path` é o arquivo
 /// de categorias (semeado de `caminho_padrao`); `None` só em testes.
+#[allow(clippy::too_many_arguments)]
 pub async fn executar(
     siape: &str,
     repositorio: Option<&str>,
@@ -154,8 +164,11 @@ pub async fn executar(
     dir_documentos: PathBuf,
     cache_resumo_path: Option<PathBuf>,
     categorias_path: Option<PathBuf>,
+    por_nome: bool,
 ) -> Result<ResultadoView, AppError> {
-    siape::validar(siape)?;
+    if !por_nome {
+        siape::validar(siape)?;
+    }
 
     let siape = siape.to_string();
     let repositorio = repositorio.map(str::to_string);
@@ -195,6 +208,7 @@ pub async fn executar(
             cache_categoria.as_mut(),
             &dir_documentos,
             cache_resumo.as_mut(),
+            por_nome,
         )
     })
     .await
@@ -282,6 +296,7 @@ mod tests {
             dir_documentos_neutro(),
             None,
             None,
+            false,
         )
         .await
         .unwrap_err();
@@ -298,6 +313,7 @@ mod tests {
             dir_documentos_neutro(),
             None,
             None,
+            false,
         )
         .await
         .unwrap_err();
@@ -323,6 +339,7 @@ mod tests {
             None,
             &dir_documentos_neutro(),
             None,
+            false,
         )
         .expect("deve montar resultado");
 
@@ -353,6 +370,7 @@ mod tests {
             None,
             &dir_documentos_neutro(),
             None,
+            false,
         )
         .unwrap_err();
         assert!(matches!(erro, AppError::FalhaPortal { .. }));
@@ -387,6 +405,7 @@ mod tests {
             None,
             &dir_documentos_neutro(),
             None,
+            false,
         )
         .expect("deve montar resultado");
 
@@ -419,6 +438,7 @@ mod tests {
             None,
             &dir_documentos_neutro(),
             None,
+            false,
         )
         .expect("deve montar resultado");
 
@@ -448,6 +468,7 @@ mod tests {
             None,
             &dir_documentos_neutro(),
             None,
+            false,
         )
         .expect("busca não deve abortar sem chat (R11)");
 
@@ -484,6 +505,7 @@ mod tests {
             None,
             &dir_documentos_neutro(),
             None,
+            false,
         )
         .expect("falha ao resumir 1 doc não pode abortar a busca (R11)");
 
@@ -522,6 +544,7 @@ mod tests {
             Some(&mut cache_categoria),
             &dir_documentos_neutro(),
             Some(&mut cache_resumo),
+            false,
         )
         .expect("primeira busca");
         assert_eq!(*chat.chamadas_resumir.borrow(), 1);
@@ -537,6 +560,7 @@ mod tests {
             Some(&mut cache_categoria),
             &dir_documentos_neutro(),
             Some(&mut cache_resumo),
+            false,
         )
         .expect("segunda busca");
 
@@ -712,5 +736,87 @@ mod tests {
             .map(|i| i.data.clone().unwrap())
             .collect();
         assert_eq!(datas, vec!["20/11/2021", "01/06/2021", "03/02/2021"]);
+    }
+
+    // --- modo de busca: nome/palavra-chave (spec 009) ---------------------- //
+
+    fn doc_sem_siape(link: &str, titulo: &str) -> Documento {
+        let mut d = Documento::novo(link, titulo);
+        d.trecho = Some("Texto antigo sem o número da matrícula.".to_string());
+        d
+    }
+
+    #[test]
+    fn modo_nome_mantem_documento_que_nao_cita_o_siape() {
+        // No modo nome (por_nome=true) NÃO se aplica o filtro por SIAPE: o
+        // documento aparece mesmo sem citar o SIAPE (FR-002).
+        let doc = doc_sem_siape(
+            "https://gedoc.ifes.edu.br/documento/zzzz?inline",
+            "PORTARIA Nº 9 - 2014 - Assunto antigo",
+        );
+        let repo = RepoFake::novo(Ok((1, vec![doc])));
+        let r = executar_com_repo(
+            "joão silva",
+            None,
+            &repo,
+            &[],
+            ModoClassificacao::Keyword,
+            None,
+            None,
+            &dir_documentos_neutro(),
+            None,
+            true,
+        )
+        .expect("modo nome não valida SIAPE (FR-003) e não filtra (FR-002)");
+        assert_eq!(r.categorias.iter().map(|c| c.qtd).sum::<usize>(), 1);
+    }
+
+    #[test]
+    fn modo_siape_descarta_documento_que_nao_cita_o_siape() {
+        // Regressão: no modo SIAPE (por_nome=false) o filtro descarta docs que
+        // não citam o SIAPE (FR-004).
+        let doc = doc_sem_siape(
+            "https://gedoc.ifes.edu.br/documento/zzzz?inline",
+            "PORTARIA Nº 9 - 2014 - Assunto antigo",
+        );
+        let repo = RepoFake::novo(Ok((1, vec![doc])));
+        let r = executar_com_repo(
+            "1998547",
+            None,
+            &repo,
+            &[],
+            ModoClassificacao::Keyword,
+            None,
+            None,
+            &dir_documentos_neutro(),
+            None,
+            false,
+        )
+        .expect("busca ok");
+        assert_eq!(
+            r.categorias.iter().map(|c| c.qtd).sum::<usize>(),
+            0,
+            "documento sem o SIAPE é descartado no modo SIAPE"
+        );
+    }
+
+    #[test]
+    fn modo_siape_rejeita_termo_invalido() {
+        // Regressão: no modo SIAPE, termo não-SIAPE é rejeitado (R10).
+        let repo = RepoFake::novo(Ok((0, vec![])));
+        let erro = executar_com_repo(
+            "abc",
+            None,
+            &repo,
+            &[],
+            ModoClassificacao::Keyword,
+            None,
+            None,
+            &dir_documentos_neutro(),
+            None,
+            false,
+        )
+        .unwrap_err();
+        assert!(matches!(erro, AppError::SiapeInvalido { .. }));
     }
 }

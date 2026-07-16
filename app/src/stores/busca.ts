@@ -42,6 +42,11 @@ export const useBuscaStore = defineStore("busca", () => {
    */
   const usarIa = ref(false);
   /**
+   * spec 009 — modo de busca: `false` = por SIAPE (valida + filtra por SIAPE);
+   * `true` = por nome/palavra-chave (texto livre, sem filtro por SIAPE).
+   */
+  const porNome = ref(false);
+  /**
    * US7 — indica se o `resultado` atual foi produzido no modo IA (`llm`).
    * O relatório consolida os RESUMOS da IA, então só faz sentido (e só é
    * habilitado na tela) quando a busca foi feita com IA. Marcado no fim de
@@ -57,6 +62,10 @@ export const useBuscaStore = defineStore("busca", () => {
   const downloadProgresso = ref<ProgressoDownload | null>(null);
 
   const siapeValido = computed(() => validarSiape(siape.value));
+  /** Validação conforme o modo: SIAPE (regex R10) ou nome (termo não vazio). */
+  const consultaValida = computed(() =>
+    porNome.value ? siape.value.trim().length > 0 : validarSiape(siape.value),
+  );
 
   /** True enquanto um download em lote está em andamento (desabilita a ação). */
   const baixandoTodos = computed(() => downloadProgresso.value !== null);
@@ -72,9 +81,9 @@ export const useBuscaStore = defineStore("busca", () => {
   });
 
   async function buscar(): Promise<void> {
-    if (!siapeValido.value) {
+    if (!consultaValida.value) {
       estado.value = "erro";
-      erro.value = MENSAGEM_SIAPE_INVALIDO;
+      erro.value = porNome.value ? "Digite um termo para buscar." : MENSAGEM_SIAPE_INVALIDO;
       resultado.value = null;
       return;
     }
@@ -87,6 +96,7 @@ export const useBuscaStore = defineStore("busca", () => {
       resultado.value = await buscarPorSiape({
         siape: siape.value,
         modo: comIa ? "llm" : "keyword",
+        por: porNome.value ? "nome" : "siape",
       });
       resultadoComIa.value = comIa;
       estado.value = "resultado";
@@ -146,10 +156,12 @@ export const useBuscaStore = defineStore("busca", () => {
     erro,
     resultado,
     siapeValido,
+    consultaValida,
     vazio,
     categoriaSelecionada,
     gruposFiltrados,
     usarIa,
+    porNome,
     resultadoComIa,
     downloadProgresso,
     baixandoTodos,
